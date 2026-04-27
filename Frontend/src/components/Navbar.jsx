@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { clearToken, decodeJwt, getToken, getUserProfile } from './api';
+import { clearToken, decodeJwt, getBookmarkedVendors, getToken, getUserProfile } from './api';
 
 function Navbar() {
   const location = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('vv_theme') || 'dark');
+  const [bookmarkCount, setBookmarkCount] = useState(() => getBookmarkedVendors().length);
   const menuRef = useRef(null);
 
   const hideOnDashboard =
@@ -40,6 +42,15 @@ function Navbar() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (hideOnDashboard) {
+      document.body.removeAttribute('data-theme');
+      return;
+    }
+    document.body.setAttribute('data-theme', theme);
+    localStorage.setItem('vv_theme', theme);
+  }, [theme, hideOnDashboard]);
+
+  useEffect(() => {
     const handleOutsideClick = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setProfileOpen(false);
@@ -49,81 +60,104 @@ function Navbar() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
+  useEffect(() => {
+    const syncCount = () => setBookmarkCount(getBookmarkedVendors().length);
+    window.addEventListener('vv_bookmarks_changed', syncCount);
+    window.addEventListener('storage', syncCount);
+    return () => {
+      window.removeEventListener('vv_bookmarks_changed', syncCount);
+      window.removeEventListener('storage', syncCount);
+    };
+  }, []);
+
   const logoutUser = () => {
     clearToken('user');
     window.location.href = '/';
   };
 
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   if (hideOnDashboard) return null;
 
   return (
-    <>
-      <div className="header-wrapper">
-        <header className="top-nav">
-          <div className="container nav-content">
-            <Link to="/" className="logo"><h1>VENDORVAULT</h1></Link>
+    <header className="vv-header">
+      <div className="container">
+        <nav className="vv-nav">
+          <Link to="/" className="vv-logo">
+            <i className="fas fa-shield-alt" />
+            <span>VendorVault</span>
+          </Link>
 
-            <nav>
-              <ul>
-                <li><NavLink to="/" end>Home</NavLink></li>
-                <li><NavLink to="/categories">Categories</NavLink></li>
-                <li><NavLink to="/vendors">Vendors</NavLink></li>
-                {isUserLoggedIn ? <li><NavLink to="/requirements">Requirements</NavLink></li> : null}
-                {isUserLoggedIn ? <li><NavLink to="/inquiries">Inquiries</NavLink></li> : null}
-                <li><NavLink to="/contact">Contact Us</NavLink></li>
-              </ul>
-            </nav>
+          <ul className="vv-nav-links">
+            <li><NavLink to="/" end>Home</NavLink></li>
+            <li><NavLink to="/vendors">Vendors</NavLink></li>
+            <li><NavLink to="/categories">Categories</NavLink></li>
+            {isUserLoggedIn ? <li><NavLink to="/requirements">Requirements</NavLink></li> : null}
+            {isUserLoggedIn ? <li><NavLink to="/inquiries">Inquiries</NavLink></li> : null}
+            <li><NavLink to="/contact">Contact</NavLink></li>
+          </ul>
 
-            <div className="header-actions">
-              {isUserLoggedIn ? (
-                <div className="profile-menu-wrap" ref={menuRef}>
-                  <button type="button" className="profile-icon-btn" onClick={() => setProfileOpen((prev) => !prev)}>
-                    {(userMeta?.name || 'U').slice(0, 1).toUpperCase()}
-                  </button>
-                  {profileOpen ? (
-                    <div className="profile-popover">
-                      <h4>{userMeta?.name || 'User'}</h4>
-                      <p>{userMeta?.email || 'No email available'}</p>
-                      <small>{userMeta?.role || 'User'}</small>
-                      <div className="profile-popover-actions">
-                        <button type="button" className="btn btn-primary" onClick={logoutUser}>Logout</button>
-                      </div>
+          <div className="vv-nav-actions">
+            {isUserLoggedIn ? <Link to="/requirements?post=1" className="vv-post-link">Post Requirement</Link> : null}
+            <Link to="/vendor/register" className="vv-btn-primary">Register Business</Link>
+            {showAuthLinks ? <Link to="/login" className="vv-sign-link">Sign In</Link> : null}
+            {isUserLoggedIn ? (
+              <Link to="/bookmarked" className="vv-bookmark-link" aria-label="Open bookmarked vendors">
+                <i className="fa-regular fa-bookmark" />
+                {bookmarkCount > 0 ? <span>{bookmarkCount}</span> : null}
+              </Link>
+            ) : null}
+
+            {isUserLoggedIn ? (
+              <div className="profile-menu-wrap" ref={menuRef}>
+                <button type="button" className="profile-icon-btn" onClick={() => setProfileOpen((prev) => !prev)}>
+                  {(userMeta?.name || 'U').slice(0, 1).toUpperCase()}
+                </button>
+                {profileOpen ? (
+                  <div className="profile-popover">
+                    <h4>{userMeta?.name || 'User'}</h4>
+                    <p>{userMeta?.email || 'No email available'}</p>
+                    <small>{userMeta?.role || 'User'}</small>
+                    <div className="profile-popover-actions">
+                      <button type="button" className="btn btn-primary" onClick={logoutUser}>Logout</button>
                     </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="desktop-auth-links">
-                  {showAuthLinks ? <Link to="/login" className="tower-auth-link">Login</Link> : null}
-                  {showAuthLinks ? <Link to="/register" className="tower-auth-link">Register</Link> : null}
-                </div>
-              )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
-              <button
-                type="button"
-                className="mobile-menu-btn"
-                aria-label="Open navigation menu"
-                onClick={() => setMobileMenuOpen((prev) => !prev)}
-              >
-                <i className={`fa-solid ${mobileMenuOpen ? 'fa-xmark' : 'fa-bars'}`} />
-              </button>
-            </div>
+            <button type="button" className="vv-theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
+              <i className={`fas ${theme === 'dark' ? 'fa-moon' : 'fa-sun'}`} />
+            </button>
+
+            <button
+              type="button"
+              className="vv-mobile-toggle"
+              aria-label="Open navigation menu"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+            >
+              <i className={`fas ${mobileMenuOpen ? 'fa-xmark' : 'fa-bars'}`} />
+            </button>
           </div>
+        </nav>
 
-          {mobileMenuOpen ? (
-            <div className="mobile-nav-panel">
-              <NavLink to="/" end>Home</NavLink>
-              <NavLink to="/categories">Categories</NavLink>
-              <NavLink to="/vendors">Vendors</NavLink>
-              {isUserLoggedIn ? <NavLink to="/requirements">Requirements</NavLink> : null}
-              {isUserLoggedIn ? <NavLink to="/inquiries">Inquiries</NavLink> : null}
-              <NavLink to="/contact">Contact Us</NavLink>
-              {showAuthLinks ? <NavLink to="/login">Login</NavLink> : null}
-              {showAuthLinks ? <NavLink to="/register">Register</NavLink> : null}
-            </div>
-          ) : null}
-        </header>
+        {mobileMenuOpen ? (
+          <div className="vv-mobile-panel">
+            <NavLink to="/" end>Home</NavLink>
+            <NavLink to="/vendors">Vendors</NavLink>
+            <NavLink to="/categories">Categories</NavLink>
+            {isUserLoggedIn ? <NavLink to="/requirements">Requirements</NavLink> : null}
+            {isUserLoggedIn ? <NavLink to="/inquiries">Inquiries</NavLink> : null}
+            {isUserLoggedIn ? <NavLink to="/bookmarked">Bookmarked</NavLink> : null}
+            <NavLink to="/contact">Contact</NavLink>
+            {showAuthLinks ? <NavLink to="/login">Sign In</NavLink> : null}
+            {showAuthLinks ? <NavLink to="/register">Register</NavLink> : null}
+          </div>
+        ) : null}
       </div>
-    </>
+    </header>
   );
 }
 

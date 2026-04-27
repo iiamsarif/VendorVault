@@ -9,72 +9,65 @@ function Footer() {
     location.pathname.startsWith('/user/dashboard') ||
     location.pathname === '/login' ||
     location.pathname === '/register' ||
-    location.pathname === '/vendor/login' ||
-    location.pathname === '/vendor/register';
+    location.pathname === '/vendor/register' ||
+    location.pathname === '/admin/login';
 
   if (hideOnDashboard) return null;
 
   return (
-    <>
-      <footer>
-        <div className="container">
-          <div className="footer-grid">
-            <div className="footer-col">
-              <div className="logo">
-                <h1 style={{ color: '#ffffff', marginBottom: '20px' }}>VENDORVAULT</h1>
-              </div>
-              <p>
-                VendorVault Gujarat helps industries discover, compare, and connect with trusted service providers.
-                Build stronger sourcing pipelines with verified business listings and requirement-driven leads.
-              </p>
+    <footer className="vv-footer">
+      <div className="container">
+        <div className="vv-footer-grid">
+          <div className="vv-footer-col">
+            <div className="vv-logo" style={{ marginBottom: '20px' }}>
+              <i className="fas fa-shield-alt" />
+              <span>VendorVault</span>
             </div>
-
-            <div className="footer-col">
-              <h4>Platform</h4>
-              <ul className="footer-links">
-                <li><Link to="/vendors">Vendor Directory</Link></li>
-                <li><Link to="/categories">Browse Categories</Link></li>
-                <li><Link to="/categories">Service Categories</Link></li>
-                <li><Link to="/faq">Help Center</Link></li>
-              </ul>
-            </div>
-
-            <div className="footer-col">
-              <h4>Recent Updates</h4>
-              <div className="comment-item">
-                <span>New</span>
-                <strong>Vendor verification process improved</strong>
-              </div>
-              <div className="comment-item">
-                <span>New</span>
-                <strong>Marketplace response workflows upgraded</strong>
-              </div>
-            </div>
-
-            <div className="footer-col">
-              <h4>Contact</h4>
-              <p>Ahmedabad, Gujarat</p>
-              <p>support@vendorvaultgujarat.in</p>
-              <p>Mon - Sat, 9:00 AM - 6:00 PM</p>
+            <p>
+              Gujarat&apos;s leading digital industrial vendor directory connecting industries with verified contractors.
+            </p>
+            <div className="vv-socials">
+              <i className="fab fa-facebook" />
+              <i className="fab fa-twitter" />
+              <i className="fab fa-linkedin" />
             </div>
           </div>
-        </div>
-      </footer>
 
-      <div className="sub-footer">
-        <div className="container">
-          <p>@2026 VendorVault Gujarat - Industrial Vendor Marketplace Platform</p>
-          <div className="sub-links">
-            <Link to="/contact">Contact</Link>
-            <Link to="/faq">FAQ</Link>
+          <div className="vv-footer-col">
+            <h5>Quick Links</h5>
+            <ul>
+              <li><Link to="/">Home</Link></li>
+              <li><Link to="/vendors">Browse Vendors</Link></li>
+              <li><Link to="/categories">Categories</Link></li>
+              <li><Link to="/requirements">Requirements</Link></li>
+            </ul>
+          </div>
+
+          <div className="vv-footer-col">
+            <h5>For Vendors</h5>
+            <ul>
+              <li><Link to="/vendor/register">Register Business</Link></li>
+              <li><Link to="/vendors">Vendor Directory</Link></li>
+              <li><Link to="/requirements">View Requirements</Link></li>
+            </ul>
+          </div>
+
+          <div className="vv-footer-col">
+            <h5>Contact Us</h5>
+            <ul className="vv-contact-list">
+              <li><i className="fas fa-envelope" /> contact@vendorvault.in</li>
+              <li><i className="fas fa-phone" /> +91 8401605796</li>
+              <li><i className="fas fa-map-marker-alt" /> Bharuch, Gujarat, India</li>
+            </ul>
           </div>
         </div>
-      </div>
 
-      <div className="floating-leaf">
-        <i className="fa-solid fa-leaf" />
+        <div className="vv-footer-bottom">
+          <p>© 2026 VendorVault Gujarat. All rights reserved.</p>
+          <p>Privacy Policy | Terms of Service</p>
+        </div>
       </div>
-    </>
+    </footer>
   );
 }
 
