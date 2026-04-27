@@ -1249,6 +1249,72 @@ async function getIndustryRequirements(req, res, next) {
   }
 }
 
+async function updateIndustryRequirement(req, res, next) {
+  try {
+    const database = getDB();
+    const requirementId = sanitizeString(req.params.requirementId || req.body.requirementId);
+    const industryName = sanitizeString(req.body.industryName);
+    const location = sanitizeString(req.body.location);
+    const requirementCategory = sanitizeString(req.body.requirementCategory);
+    const projectDescription = sanitizeString(req.body.projectDescription);
+    const contactDetails = sanitizeString(req.body.contactDetails);
+
+    if (!ObjectId.isValid(requirementId)) {
+      return res.status(400).json({ message: 'Invalid requirement id.' });
+    }
+
+    if (!industryName || !location || !requirementCategory || !projectDescription || !contactDetails) {
+      return res.status(400).json({ message: 'Please fill all required fields.' });
+    }
+
+    const result = await database.collection(COLLECTIONS.REQUIREMENTS).updateOne(
+      { _id: new ObjectId(requirementId), industryId: req.auth.id },
+      {
+        $set: {
+          industryName,
+          location,
+          requirementCategory,
+          projectDescription,
+          contactDetails,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (!result.matchedCount) {
+      return res.status(404).json({ message: 'Requirement not found or not owned by you.' });
+    }
+
+    return res.status(200).json({ message: 'Requirement updated successfully.' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function deleteIndustryRequirement(req, res, next) {
+  try {
+    const database = getDB();
+    const requirementId = sanitizeString(req.params.requirementId || req.body.requirementId);
+
+    if (!ObjectId.isValid(requirementId)) {
+      return res.status(400).json({ message: 'Invalid requirement id.' });
+    }
+
+    const result = await database.collection(COLLECTIONS.REQUIREMENTS).deleteOne({
+      _id: new ObjectId(requirementId),
+      industryId: req.auth.id
+    });
+
+    if (!result.deletedCount) {
+      return res.status(404).json({ message: 'Requirement not found or not owned by you.' });
+    }
+
+    return res.status(200).json({ message: 'Requirement deleted successfully.' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function getIndustryResponseFeed(req, res, next) {
   try {
     const database = getDB();
@@ -2505,6 +2571,8 @@ industryRoutes.post('/login', (req, res, next) => {
 industryRoutes.post('/post-requirement', requireAuth(['user']), postRequirement);
 industryRoutes.post('/shortlist-vendor', requireAuth(['user']), shortlistVendor);
 industryRoutes.get('/my-requirements', requireAuth(['user']), getIndustryRequirements);
+industryRoutes.put('/requirement/:requirementId', requireAuth(['user']), updateIndustryRequirement);
+industryRoutes.delete('/requirement/:requirementId', requireAuth(['user']), deleteIndustryRequirement);
 industryRoutes.get('/response-feed', requireAuth(['user']), getIndustryResponseFeed);
 
 const requirementRoutes = express.Router();
