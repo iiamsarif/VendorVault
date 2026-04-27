@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, authHeader, decodeJwt, getToken, getUserProfile } from '../components/api';
 
 function UserRequirementsPage() {
@@ -7,7 +7,11 @@ function UserRequirementsPage() {
   const [requirements, setRequirements] = useState([]);
   const [categories, setCategories] = useState([]);
   const [openModal, setOpenModal] = useState(false);
+  const [editingId, setEditingId] = useState('');
   const [status, setStatus] = useState('');
+  const [showMyPosts, setShowMyPosts] = useState(false);
+  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [form, setForm] = useState({
     industryName: '',
     requirementCategory: '',
@@ -21,15 +25,16 @@ function UserRequirementsPage() {
     const token = getToken('user');
     const payload = decodeJwt(token || '') || {};
     return {
+      id: String(payload?.id || ''),
       name: local?.name || local?.industryName || payload?.name || 'Industry',
       email: local?.email || payload?.email || '',
       location: local?.location || ''
     };
   }, []);
 
-  const loadRequirements = async () => {
+  const loadRequirements = async (query = '') => {
     try {
-      const response = await api.get('/industry/my-requirements', { headers: authHeader('user') });
+      const response = await api.get(`/requirements/list?search=${encodeURIComponent(query)}`);
       setRequirements(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       setRequirements([]);
@@ -50,13 +55,46 @@ function UserRequirementsPage() {
     loadCategories();
   }, []);
 
+  useEffect(() => {
+    if (searchParams.get('post') === '1') {
+      setEditingId('');
+      setForm({
+        industryName: profile.name || '',
+        requirementCategory: '',
+        projectDescription: '',
+        contactDetails: profile.email || '',
+        location: profile.location || ''
+      });
+      setOpenModal(true);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('post');
+        return next;
+      }, { replace: true });
+    }
+  }, [profile.email, profile.location, profile.name, searchParams, setSearchParams]);
+
   const openPostModal = () => {
+    setEditingId('');
     setForm({
       industryName: profile.name || '',
       requirementCategory: '',
       projectDescription: '',
       contactDetails: profile.email || '',
       location: profile.location || ''
+    });
+    setStatus('');
+    setOpenModal(true);
+  };
+
+  const openEditModal = (item) => {
+    setEditingId(String(item._id));
+    setForm({
+      industryName: item.industryName || '',
+      requirementCategory: item.requirementCategory || '',
+      projectDescription: item.projectDescription || '',
+      contactDetails: item.contactDetails || '',
+      location: item.location || ''
     });
     setStatus('');
     setOpenModal(true);
@@ -69,20 +107,44 @@ function UserRequirementsPage() {
     }
 
     try {
-      await api.post('/industry/post-requirement', form, { headers: authHeader('user') });
-      setStatus('Requirement posted successfully.');
+      if (editingId) {
+        await api.put(`/industry/requirement/${editingId}`, form, { headers: authHeader('user') });
+        setStatus('Requirement updated successfully.');
+      } else {
+        await api.post('/industry/post-requirement', form, { headers: authHeader('user') });
+        setStatus('Requirement posted successfully.');
+      }
       setOpenModal(false);
-      await loadRequirements();
+      await loadRequirements(search);
     } catch (error) {
-      setStatus(error?.response?.data?.message || 'Unable to post requirement.');
+      setStatus(error?.response?.data?.message || 'Unable to save requirement.');
     }
   };
+
+  const deleteRequirement = async (item) => {
+    const ok = window.confirm(`Delete "${item.requirementCategory}" requirement?`);
+    if (!ok) return;
+    try {
+      await api.delete(`/industry/requirement/${item._id}`, { headers: authHeader('user') });
+      setStatus('Requirement deleted successfully.');
+      await loadRequirements(search);
+    } catch (error) {
+      setStatus(error?.response?.data?.message || 'Unable to delete requirement.');
+    }
+  };
+
+  const filteredRequirements = useMemo(() => {
+    return requirements.filter((item) => {
+      if (!showMyPosts) return true;
+      return String(item.industryId || '') === profile.id;
+    });
+  }, [requirements, showMyPosts, profile.id]);
 
   return (
     <section className="container section-space user-req-page">
       <div className="section-head user-req-head">
         <div>
-          <h1>My Requirements</h1>
+          <h1>Industry Requirements</h1>
           <p>Track your posted requirements and vendor engagement in one place.</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={openPostModal}>
@@ -90,56 +152,84 @@ function UserRequirementsPage() {
         </button>
       </div>
 
+      <div className="user-req-toolbar white-card">
+        <input
+          placeholder="Search requirements by category, industry, location"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <button type="button" className="btn btn-secondary" onClick={() => loadRequirements(search)}>Search</button>
+        <button
+          type="button"
+          className={`btn ${showMyPosts ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setShowMyPosts((prev) => !prev)}
+        >
+          {showMyPosts ? 'Showing My Posts' : 'My Posts'}
+        </button>
+      </div>
+
       {status && <p className="status-text">{status}</p>}
 
       <div className="list-stack user-req-list">
-        {requirements.map((item) => (
-          <article key={item._id} className="tweet-card user-req-tweet-card">
-            <div className="tweet-header">
-              <div className="profile-info">
-                <div className="avatar">
-                  <i className="fa-solid fa-industry" />
-                </div>
-                <div className="user-details">
-                  <div className="name-row">
-                    <span className="full-name">{item.requirementCategory}</span>
+        {filteredRequirements.map((item) => {
+          const isMine = String(item.industryId || '') === profile.id;
+          return (
+            <article key={item._id} className="tweet-card user-req-tweet-card">
+              <div className="tweet-header">
+                <div className="profile-info">
+                  <div className="avatar">
+                    <i className="fa-solid fa-industry" />
                   </div>
-                  <span className="handle">{item.industryName} - {item.location}</span>
+                  <div className="user-details">
+                    <div className="name-row">
+                      <span className="full-name">{item.requirementCategory}</span>
+                    </div>
+                    <span className="handle">{item.industryName} - {item.location}</span>
+                  </div>
+                </div>
+                <div className="more-options">
+                  <i className="fa-solid fa-ellipsis" />
                 </div>
               </div>
-              <div className="more-options">
-                <i className="fa-solid fa-ellipsis" />
+
+              <div className="tweet-body">
+                <p>{item.projectDescription}</p>
               </div>
-            </div>
 
-            <div className="tweet-body">
-              <p>{item.projectDescription}</p>
-            </div>
+              <div className="tweet-timestamp">
+                {new Date(item.createdAt).toLocaleString()}
+              </div>
 
-            <div className="tweet-timestamp">
-              {new Date(item.createdAt).toLocaleString()}
-            </div>
+              <div className="tweet-stats">
+                <div className="stat-item"><strong>{Array.isArray(item.likedByVendors) ? item.likedByVendors.length : 0}</strong> Likes</div>
+                {isMine ? (
+                  <button
+                    type="button"
+                    className="stat-item user-req-responses-link"
+                    onClick={() => navigate('/inquiries')}
+                  >
+                    <strong>{Array.isArray(item.responses) ? item.responses.length : 0}</strong> Responses
+                  </button>
+                ) : null}
+              </div>
 
-            <div className="tweet-stats">
-              <div className="stat-item"><strong>{Array.isArray(item.likedByVendors) ? item.likedByVendors.length : 0}</strong> Likes</div>
-              <button
-                type="button"
-                className="stat-item user-req-responses-link"
-                onClick={() => navigate('/inquiries')}
-              >
-                <strong>{Array.isArray(item.responses) ? item.responses.length : 0}</strong> Responses
-              </button>
-            </div>
-          </article>
-        ))}
-        {!requirements.length && <p className="empty-text">No requirements posted yet.</p>}
+              {isMine ? (
+                <div className="user-req-owner-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => openEditModal(item)}>Edit</button>
+                  <button type="button" className="btn btn-danger" onClick={() => deleteRequirement(item)}>Delete</button>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+        {!filteredRequirements.length && <p className="empty-text">No requirements found.</p>}
       </div>
 
       {openModal ? (
         <div className="admin-modal-overlay" onClick={() => setOpenModal(false)} role="button" tabIndex={0}>
           <div className="admin-modal user-req-modal" onClick={(event) => event.stopPropagation()}>
             <div className="admin-modal-head user-req-modal-head">
-              <h2><i className="fa-solid fa-file-circle-plus" /> Post Requirement</h2>
+              <h2><i className="fa-solid fa-file-circle-plus" /> {editingId ? 'Edit Requirement' : 'Post Requirement'}</h2>
               <button type="button" className="btn btn-secondary" onClick={() => setOpenModal(false)}>Close</button>
             </div>
             <div className="form-grid two-cols user-req-form">
@@ -194,7 +284,7 @@ function UserRequirementsPage() {
               </div>
 
               <button type="button" className="btn btn-primary user-req-publish" onClick={submitRequirement}>
-                Publish Requirement
+                {editingId ? 'Save Changes' : 'Publish Requirement'}
               </button>
             </div>
           </div>
