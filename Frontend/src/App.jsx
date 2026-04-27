@@ -15,6 +15,7 @@ import FAQPage from './pages/FAQPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import NotFoundPage from './pages/NotFoundPage';
+import BookmarkedVendorsPage from './pages/BookmarkedVendorsPage';
 
 import AdminLogin from './Admin/AdminLogin';
 import AdminDashboard from './Admin/AdminDashboard';
@@ -148,6 +149,14 @@ function App() {
             element={(
               <ProtectedRoute role="user">
                 <ViewResponses />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/bookmarked"
+            element={(
+              <ProtectedRoute role="user">
+                <BookmarkedVendorsPage />
               </ProtectedRoute>
             )}
           />
