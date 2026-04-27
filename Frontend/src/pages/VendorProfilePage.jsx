@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api, authHeader, getToken } from '../components/api';
+import { api, authHeader, getToken, isVendorBookmarked, toggleVendorBookmark } from '../components/api';
 
 function VendorProfilePage() {
   const { vendorId } = useParams();
@@ -12,6 +12,7 @@ function VendorProfilePage() {
   const [userRating, setUserRating] = useState(0);
   const [ratingStatus, setRatingStatus] = useState('');
   const [ratingSaving, setRatingSaving] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
 
   useEffect(() => {
     const loadVendor = async () => {
@@ -27,6 +28,7 @@ function VendorProfilePage() {
         const response = await api.get(`/vendor/profile?vendorId=${vendorId}`, { headers: viewerHeaders });
         setVendor(response.data);
         setUserRating(Number(response.data?.myRating || 0));
+        setBookmarked(isVendorBookmarked(vendorId));
       } catch (error) {
         setVendor(null);
       } finally {
@@ -58,16 +60,10 @@ function VendorProfilePage() {
   };
 
   const shortlistVendor = async () => {
-    try {
-      await api.post('/industry/shortlist-vendor', { vendorId }, { headers: authHeader('user') });
-      const current = JSON.parse(localStorage.getItem('userShortlist') || '[]');
-      if (!current.includes(vendorId)) {
-        localStorage.setItem('userShortlist', JSON.stringify([...current, vendorId]));
-      }
-      setStatus('Vendor shortlisted successfully.');
-    } catch (error) {
-      setStatus('Shortlisting failed. Please login as industry user.');
-    }
+    if (!vendor) return;
+    const result = toggleVendorBookmark({ ...vendor, _id: vendorId });
+    setBookmarked(result.bookmarked);
+    setStatus(result.bookmarked ? 'Vendor bookmarked successfully.' : 'Vendor removed from bookmarks.');
   };
 
   const submitRating = async () => {
@@ -178,7 +174,11 @@ function VendorProfilePage() {
                 </div>
               </div>
               <div className="action-buttons">
-                <button type="button" className="btn-outline" onClick={shortlistVendor}><i className="fa-solid fa-heart" /> Bookmark</button>
+                <button type="button" className="btn-outline" onClick={shortlistVendor}>
+                  <i className={`fa-${bookmarked ? 'solid' : 'regular'} fa-bookmark`} />
+                  {' '}
+                  {bookmarked ? 'Bookmarked' : 'Bookmark'}
+                </button>
                 <a className="btn-outline" href={`tel:${vendor.mobileNumber || ''}`}><i className="fa fa-phone" /> Call</a>
                 <a className="btn-outline" href={`https://wa.me/${(vendor.whatsappNumber || '').replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer"><i className="fa-brands fa-whatsapp" /> WhatsApp</a>
               </div>

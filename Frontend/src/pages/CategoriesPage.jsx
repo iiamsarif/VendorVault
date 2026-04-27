@@ -33,7 +33,7 @@ function CategoriesPage() {
     <section className="container category-theme-section">
       <h2 className="category-theme-title">Choose <span>A</span> Category</h2>
       <div className="category-grid">
-        {categories.slice(0, 8).map((category, index) => (
+        {categories.map((category, index) => (
           <Link
             key={category}
             className="category-card"

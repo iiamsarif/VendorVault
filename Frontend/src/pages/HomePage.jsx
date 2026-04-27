@@ -1,241 +1,255 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { api } from '../components/api';
+import { Link, useNavigate } from 'react-router-dom';
+import { api, truncateWords } from '../components/api';
 
-const heroSlides = [
-  {
-    image: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    title: 'INDUSTRIAL SOURCING - MADE EASY',
-    subtitle: 'The trusted B2B vendor directory for Gujarat industries.',
-    description: 'Discover approved vendors, compare service categories, and respond to active requirements from one modern marketplace.'
-  },
-  {
-    image: 'https://images.pexels.com/photos/3183197/pexels-photo-3183197.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    title: 'FIND VERIFIED PARTNERS FAST',
-    subtitle: 'Connect procurement teams with reliable business listings.',
-    description: 'Use category-first discovery and direct inquiry workflows to shorten vendor evaluation time across operations.'
-  },
-  {
-    image: 'https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    title: 'GROW THROUGH MARKETPLACE LEADS',
-    subtitle: 'Track requirements and respond with confidence.',
-    description: 'From vendor onboarding to requirement responses, VendorVault keeps industrial buying and selling in one place.'
-  }
-];
-
-const showcaseImages = [
-  'https://images.pexels.com/photos/3184360/pexels-photo-3184360.jpeg?auto=compress&cs=tinysrgb&w=400',
-  'https://images.pexels.com/photos/6373305/pexels-photo-6373305.jpeg?auto=compress&cs=tinysrgb&w=400',
-  'https://images.pexels.com/photos/3184328/pexels-photo-3184328.jpeg?auto=compress&cs=tinysrgb&w=400'
+const iconList = [
+  'fas fa-bolt',
+  'fas fa-gear',
+  'fas fa-building',
+  'fas fa-truck',
+  'fas fa-helmet-safety',
+  'fas fa-industry',
+  'fas fa-screwdriver-wrench',
+  'fas fa-hard-hat'
 ];
 
 function HomePage() {
+  const navigate = useNavigate();
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [requirements, setRequirements] = useState([]);
   const [search, setSearch] = useState('');
-  const [heroIndex, setHeroIndex] = useState(0);
-  const uploadsBase = String(api.defaults.baseURL || '').replace(/\/api\/?$/, '');
 
   useEffect(() => {
-    const fetchData = async () => {
+    const load = async () => {
       try {
-        const [vendorsRes, categoriesRes] = await Promise.all([
+        const [vendorRes, categoryRes, reqRes] = await Promise.all([
           api.get('/vendor/listings?featured=true'),
-          api.get('/vendor/categories')
+          api.get('/vendor/categories'),
+          api.get('/requirements/list')
         ]);
-        setVendors(vendorsRes.data.slice(0, 6));
-        setCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : []);
+        setVendors((vendorRes.data || []).slice(0, 6));
+        setCategories((categoryRes.data || []).slice(0, 8));
+        setRequirements((reqRes.data || []).slice(0, 2));
       } catch (error) {
         setVendors([]);
         setCategories([]);
+        setRequirements([]);
       }
     };
-
-    fetchData();
+    load();
   }, []);
 
   useEffect(() => {
-    const sections = Array.from(document.querySelectorAll('.avantage-observe'));
-    if (!sections.length) return undefined;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('avantage-in-view');
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.2 }
-    );
-
-    sections.forEach((section) => observer.observe(section));
-
+    const nodes = Array.from(document.querySelectorAll('.reveal'));
+    if (!nodes.length) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('active');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    nodes.forEach((node) => observer.observe(node));
     return () => observer.disconnect();
+  }, [categories.length, vendors.length, requirements.length]);
+
+  useEffect(() => {
+    const blocks = Array.from(document.querySelectorAll('.avantage-observe'));
+    if (!blocks.length) return undefined;
+    blocks.forEach((block) => block.classList.remove('avantage-in-view'));
+
+    const smallScreen = window.matchMedia('(max-width: 768px)').matches;
+    const activateVisibleBlocks = () => {
+      blocks.forEach((block) => {
+        if (block.classList.contains('avantage-in-view')) return;
+        const rect = block.getBoundingClientRect();
+        if (rect.top <= window.innerHeight * 0.92) {
+          block.classList.add('avantage-in-view');
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('avantage-in-view');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: smallScreen ? 0.03 : 0.35, rootMargin: smallScreen ? '0px 0px -4% 0px' : '0px 0px -12% 0px' });
+
+    blocks.forEach((block) => observer.observe(block));
+    activateVisibleBlocks();
+    window.addEventListener('scroll', activateVisibleBlocks, { passive: true });
+    window.addEventListener('resize', activateVisibleBlocks);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', activateVisibleBlocks);
+      window.removeEventListener('resize', activateVisibleBlocks);
+    };
   }, []);
 
-  const filteredQuickCategories = useMemo(() => {
-    if (!search) return categories;
-    return categories.filter((item) => item.toLowerCase().includes(search.toLowerCase()));
-  }, [search, categories]);
+  const totalConnections = useMemo(
+    () => vendors.reduce((sum, item) => sum + Number(item.totalReviews || 0), 0),
+    [vendors]
+  );
 
-  const currentHero = heroSlides[heroIndex];
-
-  const goNextSlide = () => {
-    setHeroIndex((prev) => (prev + 1) % heroSlides.length);
-  };
-
-  const goPrevSlide = () => {
-    setHeroIndex((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
-  };
-
-  const toFileUrl = (filePath) => {
-    const clean = String(filePath || '').trim();
-    if (!clean) return '';
-    if (/^https?:\/\//i.test(clean)) return clean;
-    if (clean.startsWith('/')) return `${uploadsBase}${clean}`;
-    return `${uploadsBase}/${clean}`;
+  const doSearch = () => {
+    navigate(`/vendors?search=${encodeURIComponent(search.trim())}`);
   };
 
   return (
-    <div>
-      <section
-        className="hero tower-hero"
-        style={{
-          backgroundImage: `url('${currentHero.image}')`,
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center right',
-          backgroundSize: 'contain'
-        }}
-      >
+    <div className="vv-public-page">
+      <section className="vv-hero">
         <div className="container">
-          <div className="hero-content">
-            <h2>{currentHero.title}</h2>
-            <div className="subtitle">{currentHero.subtitle}</div>
-            <p>{currentHero.description}</p>
-            <div className="hero-buttons">
-              <Link to="/vendor/register" className="btn-purchase">Register Vendor</Link>
-              <Link to="/vendors" className="btn-purchase btn-alt">Explore Vendors</Link>
+          <span className="vv-status-badge">SYSTEM ONLINE // NETWORK ACTIVE</span>
+          <h1 className="reveal slide-left">
+            VENDORVAULT <span className="orange">GUJARAT</span>
+          </h1>
+          <p className="reveal">
+            The definitive digital directory for industrial procurement. Connect with verified contractors, suppliers,
+            and service providers across Gujarat&apos;s industrial landscape.
+          </p>
+
+          <div className="vv-search-box reveal">
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by category, service, or location..."
+            />
+            <button type="button" className="vv-btn-primary" onClick={doSearch}>Initialize Search</button>
+          </div>
+
+          <div className="vv-stats-grid">
+            <div className="vv-stat-item reveal">
+              <h3>{vendors.length || 0}+</h3>
+              <span>Featured Vendors</span>
+            </div>
+            <div className="vv-stat-item reveal">
+              <h3>{categories.length || 0}+</h3>
+              <span>Active Categories</span>
+            </div>
+            <div className="vv-stat-item reveal">
+              <h3>{totalConnections || 0}+</h3>
+              <span>Network Connections</span>
             </div>
           </div>
         </div>
-        <div className="slider-nav">
-          <button type="button" aria-label="Previous slide" onClick={goPrevSlide}>
-            <i className="fa-solid fa-chevron-left" />
-          </button>
-          <button type="button" aria-label="Next slide" onClick={goNextSlide}>
-            <i className="fa-solid fa-chevron-right" />
-          </button>
+      </section>
+
+      <section className="section-padding container vv-directory-section">
+        <div className="vv-section-head-row">
+          <div>
+            <span className="vv-kicker">DIRECTORY INDEX</span>
+            <h2>Systematic <span>Categorization</span></h2>
+            <p>Navigate our structured database of industrial service providers. Each category is meticulously maintained.</p>
+          </div>
+          <Link to="/categories" className="vv-inline-link">ACCESS FULL INDEX -&gt;</Link>
+        </div>
+
+        <div className="vv-cat-grid">
+          {categories.map((category, index) => (
+            <Link key={category} to={`/vendors?search=${encodeURIComponent(category)}`} className="vv-cat-card reveal" data-index={String(index + 1).padStart(2, '0')}>
+              <i className={iconList[index % iconList.length]} />
+              <h5>{category}</h5>
+            </Link>
+          ))}
+          {!categories.length ? <p className="empty-text">No categories found.</p> : null}
         </div>
       </section>
 
-      <section className="showcase">
-        <div className="container">
-          <div className="grid">
-            {showcaseImages.map((img, index) => (
-              <div className="grid-item" key={img}>
-                <img src={img} alt={`Showcase ${index + 1}`} />
+      <section className="vv-quote-section">
+        <i className="fas fa-bolt" />
+        <blockquote>&quot;Empowering Gujarat&apos;s industrial backbone through seamless, verified digital connections.&quot;</blockquote>
+      </section>
+
+      <section className="section-padding container">
+        <div className="vv-section-head-row">
+          <h2>Featured <span>Vendors</span></h2>
+          <Link to="/vendors" className="vv-outline-btn">VIEW COMPLETE ROSTER</Link>
+        </div>
+
+        <div className="vv-vendor-grid">
+          {vendors.map((vendor, index) => (
+            <Link key={vendor._id} to={`/vendors/${vendor._id}`} className={`vv-vendor-card reveal ${index === 0 ? 'slide-left' : index === vendors.length - 1 ? 'slide-right' : ''}`}>
+              {vendor.verified ? <span className="vv-verified-tag"><i className="fa-solid fa-circle-check" /> VERIFIED</span> : null}
+              <i className="fas fa-industry vv-vendor-icon" />
+              <h4>{vendor.companyName}</h4>
+              <p>{truncateWords(vendor.companyDescription || 'Trusted industrial vendor in VendorVault Gujarat.', 10)}</p>
+              <div className="vv-vendor-meta">
+                <i className="fas fa-map-marker-alt" /> {vendor.cityState || vendor.location || 'Gujarat'}
               </div>
-            ))}
-          </div>
+            </Link>
+          ))}
+          {!vendors.length ? <p className="empty-text">No featured vendors yet.</p> : null}
         </div>
       </section>
 
-      <section className="clients">
-        <div className="container">
-          <h3 className="section-title">POPULAR CATEGORIES</h3>
-          <div className="client-logos">
-            {filteredQuickCategories.slice(0, 10).map((category) => (
-              <Link key={category} to={`/vendors?search=${encodeURIComponent(category)}`}>{category}</Link>
-            ))}
-          </div>
-          <div className="tower-search-box">
-            <input
-              type="text"
-              placeholder="Search category"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="container section-space tower-content-block recent-news-section">
-        <div className="news-header">
-          <h2>Recent news</h2>
-          <div className="slider-controls">
-            <button type="button" className="control-btn" aria-label="Previous">
-              <i className="fa-solid fa-chevron-left" />
-            </button>
-            <button type="button" className="control-btn" aria-label="Next">
-              <i className="fa-solid fa-chevron-right" />
-            </button>
-          </div>
+      <section className="section-padding container">
+        <div style={{ marginBottom: '40px' }}>
+          <span className="vv-kicker">LIVE FEED</span>
+          <h2 className="vv-main-title">Industry <span>Requirements</span></h2>
         </div>
 
-        <div className="news-grid">
-          {vendors.map((vendor, index) => {
-            const animationClass = index % 3 === 0 ? 'animate-left' : index % 3 === 1 ? 'animate-bottom' : 'animate-right';
-            return (
-            <article key={vendor._id} className={`news-card ${animationClass}`}>
-              <div className="card-image">
-                <img
-                  src={
-                    toFileUrl((Array.isArray(vendor.galleryImages) ? vendor.galleryImages[0] : '') || vendor.companyLogo) ||
-                    'https://images.unsplash.com/photo-1516937941344-00b4e0337589?auto=format&fit=crop&w=600&q=80'
-                  }
-                  alt={vendor.companyName}
-                />
+        <div className="vv-req-list">
+          {requirements.map((item) => (
+            <article key={item._id} className="vv-req-card reveal">
+              <div>
+                <span className="vv-req-badge">{item.requirementCategory || 'REQUIREMENT'}</span>
+                <h5>{item.industryName || 'Industry Requirement'}</h5>
+                <p>{item.projectDescription}</p>
               </div>
-              <div className="card-content">
-                <h3>
-                  {vendor.companyName}
-                  {vendor.verified ? <i className="fa-solid fa-circle-check featured-verified-tick" /> : null}
-                </h3>
-                <div className="meta-info">
-                  <span><i className="fa-regular fa-calendar" /> {new Date(vendor.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}</span>
-                </div>
-                <p className="card-description">
-                  {vendor.companyDescription || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam efficitur rutrum diam, ut commodo ipsum elementum. Duis quis iaculis.'}
-                </p>
-                <Link to={`/vendors/${vendor._id}`} className="read-more-btn">View Profile</Link>
-              </div>
+              <Link to="/requirements" className="vv-req-submit">SUBMIT PROPOSAL -&gt;</Link>
             </article>
-          );
-          })}
-          {!vendors.length && <p className="empty-text">No featured vendors yet.</p>}
+          ))}
+          {!requirements.length ? <p className="empty-text">No requirements available.</p> : null}
         </div>
       </section>
+
+      <div className="container">
+        <div className="vv-reg-cta reveal">
+          <h2>Integrate Your <span>Business</span></h2>
+          <p>Join the most advanced industrial vendor network in Gujarat. Increase visibility, receive direct inquiries, and scale your operations.</p>
+          <div className="vv-cta-btns">
+            <Link to="/vendor/register" className="vv-btn-primary">Initialize Registration</Link>
+            <Link to="/requirements?post=1" className="vv-outline-btn">Post Requirement</Link>
+          </div>
+        </div>
+      </div>
 
       <section className="avantage-hero-timeline avantage-observe">
         <div className="avantage-hero-left avantage-animate-left">
           <div className="avantage-bold-logo">
-            <h1 className="avantage-infinity">VV</h1>
-            <h1><span>VENDORVAULT</span> Industrial Network</h1>
-            <p>Trusted vendor discovery for Gujarat industries</p>
+            <h1 className="avantage-infinity">&infin;</h1>
+            <h1><span>VENDORVAULT</span> GUJARAT</h1>
+            <p>Industrial vendor discovery platform for Gujarat</p>
           </div>
         </div>
 
         <div className="avantage-hero-right avantage-animate-right">
           <div className="avantage-timeline-container">
             <div className="avantage-timeline-line" />
+            <div className="avantage-year-marker">1999</div>
 
             <div className="avantage-timeline-card left" style={{ marginTop: '60px' }}>
-              <h4>Vendor Discovery Simplified</h4>
-              <p>Find verified contractors, suppliers, and service providers by category, location, and expertise from one reliable industrial platform.</p>
-              <img src="https://images.pexels.com/photos/6950121/pexels-photo-6950121.jpeg?_gl=1*tus3gg*_ga*MTM2NDg4Njc4Ny4xNzcyODY2ODE5*_ga_8JE65Q40S6*czE3NzY5NDM1OTIkbzY5JGcxJHQxNzc2OTQzOTIyJGo1OSRsMCRoMA.." alt="team" />
+              <h4>Verified Vendor Ecosystem</h4>
+              <p>Build trust with approved business profiles, service documentation, and searchable vendor categories for industrial procurement teams.</p>
+              <img src="https://images.pexels.com/photos/14749234/pexels-photo-14749234.jpeg?auto=compress&cs=tinysrgb&w=800" alt="team" />
             </div>
 
             <div className="avantage-timeline-card right">
-              <h4>Requirement Marketplace</h4>
-              <p>Industries can post requirements and vendors can respond quickly with quotes, helping procurement teams move faster with better clarity.</p>
-              <img src="https://images.pexels.com/photos/11299548/pexels-photo-11299548.jpeg?_gl=1*7ilgve*_ga*MTM2NDg4Njc4Ny4xNzcyODY2ODE5*_ga_8JE65Q40S6*czE3NzY5NDM1OTIkbzY5JGcxJHQxNzc2OTQzODQ1JGo1OSRsMCRoMA.." alt="london" />
+              <h4>Requirement Marketplace Live</h4>
+              <p>Industries can post requirements in minutes, and relevant vendors can respond quickly with offers, quotes, and contact details.</p>
+              <img src="https://images.pexels.com/photos/7109241/pexels-photo-7109241.jpeg?auto=compress&cs=tinysrgb&w=800" alt="london" />
             </div>
 
             <div className="avantage-timeline-card left">
-              <h4>Growth for Vendors</h4>
-              <p>Build profile visibility, gain quality leads, and grow business through featured listings, verification, and subscription upgrades.</p>
+              <h4>Faster Procurement Decisions</h4>
+              <p>Compare services, locations, ratings, and vendor responses in one workflow to reduce sourcing time and improve decision quality.</p>
             </div>
           </div>
         </div>
@@ -244,7 +258,7 @@ function HomePage() {
       <section className="avantage-color-section avantage-observe">
         <div className="avantage-color-content avantage-animate-left">
           <h2>Smart <br /><b>Industrial Search</b></h2>
-          <p>Search by service category, city, and vendor type to shortlist the right industrial partner quickly. VendorVault is built for practical B2B sourcing workflows.</p>
+          <p>Search by category, service, and city to find the right industrial partner. VendorVault is designed for practical B2B sourcing across Gujarat.</p>
         </div>
 
         <div className="avantage-laptop-container avantage-animate-right">
@@ -256,7 +270,6 @@ function HomePage() {
               </div>
               <div className="avantage-mock-hero">
                 <h3>Find the right <br /><span className="pink-text">Industrial Vendor</span></h3>
-                <p style={{ fontSize: '10px', marginTop: '10px' }}>Connect industries with verified service partners across Gujarat.</p>
               </div>
             </div>
           </div>
@@ -273,26 +286,26 @@ function HomePage() {
           <h2>Reliable Support, <br />Fast &amp; Practical</h2>
 
           <div className="avantage-support-row">
-            <div className="avantage-icon-box"><i className="fa-solid fa-book-open" /></div>
+            <div className="avantage-icon-box">&#128214;</div>
             <div className="avantage-text-box">
               <h4>Vendor Onboarding Help</h4>
-              <p>Get guided support for creating complete vendor profiles, uploading documents, and improving visibility in category listings.</p>
+              <p>Get support for completing business profiles, uploading documents, and improving listing visibility across categories.</p>
             </div>
           </div>
 
           <div className="avantage-support-row">
-            <div className="avantage-icon-box"><i className="fa-solid fa-circle-question" /></div>
+            <div className="avantage-icon-box">&#10067;</div>
             <div className="avantage-text-box">
               <h4>Procurement FAQs</h4>
-              <p>Find answers on vendor verification, requirement posting, lead responses, and best practices for industry-vendor engagement.</p>
+              <p>Find answers about requirement posting, vendor verification, lead responses, and best practices for industrial sourcing.</p>
             </div>
           </div>
 
           <div className="avantage-support-row">
-            <div className="avantage-icon-box"><i className="fa-solid fa-ticket" /></div>
+            <div className="avantage-icon-box">&#127903;</div>
             <div className="avantage-text-box">
               <h4>Dedicated Support Ticket</h4>
-              <p>Need help with account, listing, or requirement flow? Raise a support ticket and our team will assist you promptly.</p>
+              <p>Need help with listing, account setup, or marketplace responses? Raise a ticket and our team will assist you quickly.</p>
             </div>
           </div>
         </div>
@@ -302,5 +315,3 @@ function HomePage() {
 }
 
 export default HomePage;
-
-

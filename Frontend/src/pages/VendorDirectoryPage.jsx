@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '../components/api';
+import { api, truncateWords } from '../components/api';
 
 const defaultFilters = {
   category: '',
@@ -242,7 +242,7 @@ function VendorDirectoryPage() {
                   <div className="card-meta"><i className="fa fa-location-dot" /> {vendor.location || 'Gujarat'}</div>
                   <div className="card-meta"><i className="fa-regular fa-clock" /> {vendor.yearsExperience || 0} years experience</div>
                   <div className="card-meta"><i className="fa fa-phone" /> {vendor.mobileNumber || '-'}</div>
-                  <div className="card-meta">{vendor.companyDescription || 'Trusted industrial service provider in Gujarat.'}</div>
+                  <div className="card-meta">{truncateWords(vendor.companyDescription || 'Trusted industrial service provider in Gujarat.', 10)}</div>
 
                   <div className="card-footer">
                     <div><i className="fa-solid fa-bowl-food" style={{ marginRight: '8px' }} /> {vendor.category}</div>
