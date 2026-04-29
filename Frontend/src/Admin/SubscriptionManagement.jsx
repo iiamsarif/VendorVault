@@ -12,8 +12,8 @@ function SubscriptionManagement() {
   const load = async () => {
     try {
       const [statsResponse, paidResponse] = await Promise.all([
-        api.get('/admin/stats', { headers: authHeader('admin') }),
-        api.get('/admin/subscriptions/paid-vendors', { headers: authHeader('admin') })
+        api.get('/admin/stats', { headers: authHeader('admin'), params: { _t: Date.now() } }),
+        api.get('/admin/subscriptions/paid-vendors', { headers: authHeader('admin'), params: { _t: Date.now() } })
       ]);
 
       setStats(statsResponse.data.subscriptions || []);

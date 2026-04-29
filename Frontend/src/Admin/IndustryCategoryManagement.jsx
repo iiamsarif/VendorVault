@@ -64,6 +64,14 @@ function IndustryCategoryManagement() {
     setStatus('');
   };
 
+  const deleteCategory = () => {
+    if (editingIndex === null) return;
+    setCategories((prev) => prev.filter((_, idx) => idx !== editingIndex));
+    setEditingIndex(null);
+    setEditingValue('');
+    setStatus('Industry category removed. Click "Save Categories" to persist changes.');
+  };
+
   const save = async () => {
     try {
       await api.post('/admin/industry-categories', { categories }, { headers: authHeader('admin') });
@@ -107,9 +115,14 @@ function IndustryCategoryManagement() {
                 onChange={(event) => setEditingValue(event.target.value)}
                 placeholder="Industry category name"
               />
-              <button type="button" className="btn btn-primary category-edit-save" onClick={applyEdit}>
-                <i className="fa-solid fa-check" /> Update Category
-              </button>
+              <div className="button-row category-edit-save">
+                <button type="button" className="btn btn-danger" onClick={deleteCategory}>
+                  <i className="fa-solid fa-trash" /> Delete Category
+                </button>
+                <button type="button" className="btn btn-primary" onClick={applyEdit}>
+                  <i className="fa-solid fa-check" /> Update Category
+                </button>
+              </div>
             </div>
           </div>
         </div>

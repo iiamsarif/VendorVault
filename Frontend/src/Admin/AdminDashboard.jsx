@@ -28,7 +28,7 @@ function AdminDashboard() {
         <article className="white-card"><h3>Approved Vendors</h3><h2>{stats?.vendors?.approvedVendors || 0}</h2></article>
         <article className="white-card"><h3>Verified Vendors</h3><h2>{stats?.vendors?.verifiedVendors || 0}</h2></article>
         <article className="white-card"><h3>Requirements</h3><h2>{stats?.requirements || 0}</h2></article>
-        <article className="white-card"><h3>Industries</h3><h2>{stats?.industries || 0}</h2></article>
+        <article className="white-card"><h3>Users</h3><h2>{stats?.industries || 0}</h2></article>
       </div>
       <div className="card-grid three section-space-sm">
         <Link className="white-card linked-card" to="/admin/vendors/approval">Vendor Approval</Link>

@@ -9,10 +9,14 @@ function CategoryManagement() {
   const [editingValue, setEditingValue] = useState('');
 
   const loadCategories = async () => {
+    console.log('=== LOADING CATEGORIES ===');
     try {
+      console.log('Making API call to GET /admin/categories...');
       const response = await api.get('/admin/categories', { headers: authHeader('admin') });
+      console.log('Categories loaded from API:', response.data);
       setCategories(response.data || []);
     } catch (error) {
+      console.log('Error loading categories:', error);
       setCategories([]);
     }
   };
@@ -45,6 +49,11 @@ function CategoryManagement() {
   };
 
   const applyEdit = () => {
+    console.log('=== APPLYING EDIT ===');
+    console.log('Editing index:', editingIndex);
+    console.log('Editing value:', editingValue);
+    console.log('Current categories:', categories);
+    
     if (editingIndex === null) return;
     const trimmed = editingValue.trim();
     if (!trimmed) {
@@ -58,17 +67,37 @@ function CategoryManagement() {
       return;
     }
 
-    setCategories((prev) => prev.map((item, idx) => (idx === editingIndex ? trimmed : item)));
+    const updatedCategories = categories.map((item, idx) => (idx === editingIndex ? trimmed : item));
+    console.log('Updated categories:', updatedCategories);
+    setCategories(updatedCategories);
     setEditingIndex(null);
     setEditingValue('');
-    setStatus('');
+    setStatus('Category updated. Click "Save Categories" to persist changes.');
+  };
+
+  const deleteCategory = () => {
+    if (editingIndex === null) return;
+    setCategories((prev) => prev.filter((_, idx) => idx !== editingIndex));
+    setEditingIndex(null);
+    setEditingValue('');
+    setStatus('Category removed. Click "Save Categories" to persist changes.');
   };
 
   const save = async () => {
+    console.log('=== SAVING CATEGORIES ===');
+    console.log('Categories to save:', categories);
     try {
-      await api.post('/admin/categories', { categories }, { headers: authHeader('admin') });
+      console.log('Making API call to /admin/categories...');
+      const response = await api.post('/admin/categories', { categories }, { headers: authHeader('admin') });
+      console.log('API Response:', response);
       setStatus('Categories updated successfully.');
+      console.log('Categories saved successfully');
+      
+      // Reload categories from database to verify persistence
+      console.log('Reloading categories from database...');
+      await loadCategories();
     } catch (error) {
+      console.log('Error saving categories:', error);
       setStatus('Failed to update categories.');
     }
   };
@@ -107,9 +136,14 @@ function CategoryManagement() {
                 onChange={(event) => setEditingValue(event.target.value)}
                 placeholder="Category name"
               />
-              <button type="button" className="btn btn-primary category-edit-save" onClick={applyEdit}>
-                <i className="fa-solid fa-check" /> Update Category
-              </button>
+              <div className="button-row category-edit-save">
+                <button type="button" className="btn btn-danger" onClick={deleteCategory}>
+                  <i className="fa-solid fa-trash" /> Delete Category
+                </button>
+                <button type="button" className="btn btn-primary" onClick={applyEdit}>
+                  <i className="fa-solid fa-check" /> Update Category
+                </button>
+              </div>
             </div>
           </div>
         </div>
