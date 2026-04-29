@@ -26,8 +26,7 @@ import ListingModeration from './Admin/ListingModeration';
 import SubscriptionManagement from './Admin/SubscriptionManagement';
 import RequirementManagement from './Admin/RequirementManagement';
 import AnalyticsOverview from './Admin/AnalyticsOverview';
-import FeaturedVendorManagement from './Admin/FeaturedVendorManagement';
-import PlatformStatistics from './Admin/PlatformStatistics';
+import UserManagement from './Admin/UserManagement';
 
 import VendorRegistration from './Vendor/VendorRegistration';
 import VendorDashboard from './Vendor/VendorDashboard';
@@ -58,8 +57,7 @@ const adminLinks = [
   { to: '/admin/subscriptions', label: 'Subscriptions', icon: 'fa-solid fa-credit-card' },
   { to: '/admin/requirements', label: 'Requirements', icon: 'fa-solid fa-file-circle-plus' },
   { to: '/admin/analytics', label: 'Analytics', icon: 'fa-solid fa-chart-line' },
-  { to: '/admin/featured', label: 'Featured Vendors', icon: 'fa-solid fa-star' },
-  { to: '/admin/platform-stats', label: 'Platform Statistics', icon: 'fa-solid fa-chart-pie' }
+  { to: '/admin/users', label: 'Users', icon: 'fa-solid fa-users' }
 ];
 
 const vendorLinks = [
@@ -68,7 +66,7 @@ const vendorLinks = [
   { to: '/vendor/dashboard/add-services', label: 'Add Services', icon: 'fa fa-list-check', badge: '12' },
   { to: '/vendor/dashboard/upload-assets', label: 'Upload Assets', icon: 'fa fa-upload' },
   { to: '/vendor/dashboard/listings', label: 'Listings', icon: 'fa fa-layer-group' },
-  { to: '/vendor/dashboard/inquiries', label: 'View Inquiries', icon: 'fa fa-envelope', badge: '08', badgeClass: 'yellow' },
+  { to: '/vendor/dashboard/inquiries', label: 'View Inquiries', icon: 'fa fa-envelope' },
   { to: '/vendor/dashboard/profile-views', label: 'Profile Views', icon: 'fa fa-eye' },
   { to: '/vendor/dashboard/subscription', label: 'Subscription', icon: 'fa fa-crown', badge: '02', badgeClass: 'orange' },
   { to: '/vendor/dashboard/respond-requirements', label: 'Respond Requirements', icon: 'fa fa-reply' },
@@ -173,8 +171,7 @@ function App() {
             <Route path="subscriptions" element={<SubscriptionManagement />} />
             <Route path="requirements" element={<RequirementManagement />} />
             <Route path="analytics" element={<AnalyticsOverview />} />
-            <Route path="featured" element={<FeaturedVendorManagement />} />
-            <Route path="platform-stats" element={<PlatformStatistics />} />
+            <Route path="users" element={<UserManagement />} />
             <Route index element={<Navigate to="dashboard" replace />} />
           </Route>
 
