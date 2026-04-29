@@ -12,12 +12,15 @@ const defaultFilters = {
 };
 
 function VendorDirectoryPage() {
+  const ITEMS_PER_PAGE = 4;
+  const PAGE_GROUP_SIZE = 5;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [imageIndexes, setImageIndexes] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
     ...defaultFilters,
     category: searchParams.get('category') || '',
@@ -36,6 +39,10 @@ function VendorDirectoryPage() {
 
     loadCategories();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
 
   useEffect(() => {
     const loadVendors = async () => {
@@ -66,6 +73,21 @@ function VendorDirectoryPage() {
   }, [filters]);
 
   const resultCount = useMemo(() => vendors.length, [vendors]);
+  const sortedVendors = useMemo(() => {
+    const list = Array.isArray(vendors) ? [...vendors] : [];
+    return list.sort((a, b) => {
+      const aTime = new Date(a?.createdAt || 0).getTime();
+      const bTime = new Date(b?.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+  }, [vendors]);
+  const totalPages = Math.max(1, Math.ceil(sortedVendors.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * ITEMS_PER_PAGE;
+  const paginatedVendors = sortedVendors.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const groupStart = Math.floor((safePage - 1) / PAGE_GROUP_SIZE) * PAGE_GROUP_SIZE + 1;
+  const groupEnd = Math.min(groupStart + PAGE_GROUP_SIZE - 1, totalPages);
+  const pageItems = Array.from({ length: groupEnd - groupStart + 1 }, (_, index) => groupStart + index);
   const uploadsBase = String(api.defaults.baseURL || '').replace(/\/api\/?$/, '');
 
   const toFileUrl = (filePath) => {
@@ -169,7 +191,7 @@ function VendorDirectoryPage() {
         </aside>
 
         <main className="results-list">
-          {vendors.map((vendor) => {
+          {paginatedVendors.map((vendor) => {
             const fallbackCover = 'https://images.pexels.com/photos/3182781/pexels-photo-3182781.jpeg?auto=compress&cs=tinysrgb&w=800';
             const gallery = [
               ...(Array.isArray(vendor.galleryImages) ? vendor.galleryImages : [])
@@ -239,7 +261,7 @@ function VendorDirectoryPage() {
                     <span className="stars">{renderStars(vendor.rating)}</span>
                     <strong>{ratingValue}</strong> ({vendor.totalReviews || 0}) - <span className="status-open">{vendor.approved ? 'Open' : 'Pending'}</span>
                   </div>
-                  <div className="card-meta"><i className="fa fa-location-dot" /> {vendor.location || 'Gujarat'}</div>
+                  <div className="card-meta"><i className="fa fa-location-dot" /> {vendor.cityState || 'Gujarat'}</div>
                   <div className="card-meta"><i className="fa-regular fa-clock" /> {vendor.yearsExperience || 0} years experience</div>
                   <div className="card-meta"><i className="fa fa-phone" /> {vendor.mobileNumber || '-'}</div>
                   <div className="card-meta">{truncateWords(vendor.companyDescription || 'Trusted industrial service provider in Gujarat.', 10)}</div>
@@ -257,7 +279,30 @@ function VendorDirectoryPage() {
             );
           })}
 
-          {!loading && !vendors.length ? <p className="empty-text">No vendors match your filters.</p> : null}
+          {!loading && !sortedVendors.length ? <p className="empty-text">No vendors match your filters.</p> : null}
+          {!loading && sortedVendors.length > ITEMS_PER_PAGE ? (
+            <div className="vendor-pagination">
+              {pageItems.map((pageNo) => (
+                <button
+                  key={pageNo}
+                  type="button"
+                  className={`vendor-page-btn ${safePage === pageNo ? 'active' : ''}`}
+                  onClick={() => setCurrentPage(pageNo)}
+                >
+                  {pageNo}
+                </button>
+              ))}
+              {groupEnd < totalPages ? (
+                <button
+                  type="button"
+                  className="vendor-page-btn"
+                  onClick={() => setCurrentPage(groupEnd + 1)}
+                >
+                  Next
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </main>
       </div>
     </section>

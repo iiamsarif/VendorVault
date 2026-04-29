@@ -49,7 +49,7 @@ function BookmarkedVendorsPage() {
                   {vendor.verified ? <i className="fa-solid fa-circle-check verified-tick" /> : null}
                 </h3>
                 <p>{vendor.category || 'Service Vendor'}</p>
-                <small><i className="fa fa-location-dot" /> {vendor.cityState || vendor.location || 'Gujarat'}</small>
+                <small><i className="fa fa-location-dot" /> {vendor.cityState || 'Gujarat'}</small>
               </div>
             </div>
             <p className="bookmarked-desc">{truncateWords(vendor.companyDescription || 'Trusted industrial vendor profile.', 10)}</p>

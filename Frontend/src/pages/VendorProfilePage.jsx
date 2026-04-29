@@ -55,7 +55,12 @@ function VendorProfilePage() {
       setStatus('Inquiry sent successfully.');
       setInquiry({ contactName: '', contactEmail: '', contactPhone: '', message: '' });
     } catch (error) {
-      setStatus(error?.response?.data?.message || 'Unable to send inquiry. Login as user/industry first.');
+      const apiMessage = String(error?.response?.data?.message || '');
+      if (apiMessage.toLowerCase().includes('authentication token missing')) {
+        setStatus('Please sign in to send inquiries.');
+      } else {
+        setStatus(apiMessage || 'Unable to send inquiry. Please sign in first.');
+      }
     }
   };
 
@@ -144,6 +149,57 @@ function VendorProfilePage() {
     .filter(Boolean);
   const stars = Math.max(0, Math.min(5, Math.round(Number(vendor.rating) || 0)));
   const ratingLabel = Number(vendor.rating || 0).toFixed(1);
+  const primaryServiceAreaText = Array.isArray(vendor.primaryServiceArea) ? vendor.primaryServiceArea.join(', ') : '';
+  const serviceTypesText = Array.isArray(vendor.serviceTypes) ? vendor.serviceTypes.join(', ') : '';
+  const categoriesText = Array.isArray(vendor.categories) ? vendor.categories.join(', ') : '';
+  const safe = (value) => {
+    if (Array.isArray(value)) return value.length ? value.join(', ') : '-';
+    return String(value || '').trim() || '-';
+  };
+
+  // 4-stage verification check
+  const getVerificationStage = (vendor) => {
+    if (!vendor) return 0;
+    
+    // Stage 1: Basic Registration (email verified)
+    const hasBasicInfo = vendor.email && vendor.companyName && vendor.mobileNumber;
+    if (!hasBasicInfo) return 0;
+    
+    // Stage 2: Profile Completion (all required fields filled)
+    const hasCompleteProfile = 
+      vendor.contactPerson &&
+      vendor.officeAddress &&
+      vendor.category &&
+      vendor.servicesOffered &&
+      vendor.servicesOffered.length > 0;
+    if (!hasCompleteProfile) return 1;
+    
+    // Stage 3: Document Upload (certificates or documents uploaded)
+    const hasDocuments = 
+      (vendor.certificates && vendor.certificates.length > 0) ||
+      (vendor.documents && vendor.documents.length > 0);
+    if (!hasDocuments) return 2;
+    
+    // Stage 4: Admin Verified (verified by admin)
+    return vendor.verified ? 4 : 3;
+  };
+
+  const isVendorVerified = () => {
+    const stage = getVerificationStage(vendor);
+    return stage === 4; // Only show inquiry if fully verified (stage 4)
+  };
+
+  const getVerificationStatus = () => {
+    const stage = getVerificationStage(vendor);
+    const stages = {
+      0: { text: 'Not Registered', color: '#dc3545', icon: 'fa-times-circle' },
+      1: { text: 'Basic Registration', color: '#ffc107', icon: 'fa-exclamation-circle' },
+      2: { text: 'Profile Complete', color: '#17a2b8', icon: 'fa-info-circle' },
+      3: { text: 'Documents Pending', color: '#fd7e14', icon: 'fa-clock' },
+      4: { text: 'Fully Verified', color: '#28a745', icon: 'fa-check-circle' }
+    };
+    return stages[stage] || stages[0];
+  };
 
   return (
     <section className="vendor-detail-theme">
@@ -159,7 +215,9 @@ function VendorProfilePage() {
                 <div className="profile-title">
                   <h1>
                     {vendor.companyName}
-                    {vendor.verified ? <span className="claimed"><i className="fa fa-check-circle" /> Verified</span> : null}
+                    <span className="claimed" style={{ color: getVerificationStatus().color }}>
+                      <i className={`fa ${getVerificationStatus().icon}`} /> {getVerificationStatus().text}
+                    </span>
                   </h1>
                   <div className="profile-meta">
                     <span className="stars">
@@ -215,9 +273,39 @@ function VendorProfilePage() {
 
                   <div className="header-with-icon">
                     <div className="icon-box"><i className="fa fa-industry" /></div>
-                    <h3>Industries Served</h3>
+                    <h3>Primary Service Area</h3>
                   </div>
-                  <p>{(vendor.industriesServed || []).join(', ') || 'Industrial Manufacturing'}</p>
+                  <p>{primaryServiceAreaText || '-'}</p>
+
+                  <div className="header-with-icon">
+                    <div className="icon-box"><i className="fa fa-circle-info" /></div>
+                    <h3>Vendor Details</h3>
+                  </div>
+                  <div className="vendor-details-grid">
+                    <div className="vendor-detail-item"><span>Contact Person</span><strong>{safe(vendor.contactPerson)}</strong></div>
+                    <div className="vendor-detail-item"><span>Email</span><strong>{safe(vendor.email)}</strong></div>
+                    <div className="vendor-detail-item"><span>Mobile Number</span><strong>{safe(vendor.mobileNumber)}</strong></div>
+                    <div className="vendor-detail-item"><span>WhatsApp Number</span><strong>{safe(vendor.whatsappNumber)}</strong></div>
+                    <div className="vendor-detail-item vendor-detail-item-wide"><span>Office Address</span><strong>{safe(vendor.officeAddress)}</strong></div>
+                    <div className="vendor-detail-item"><span>State</span><strong>{safe(vendor.cityState)}</strong></div>
+                    <div className="vendor-detail-item"><span>Category</span><strong>{safe(vendor.category)}</strong></div>
+                    <div className="vendor-detail-item vendor-detail-item-wide"><span>Categories</span><strong>{safe(categoriesText)}</strong></div>
+                    <div className="vendor-detail-item vendor-detail-item-wide"><span>Primary Service Area</span><strong>{safe(primaryServiceAreaText)}</strong></div>
+                    <div className="vendor-detail-item vendor-detail-item-wide"><span>Type of Service Provided</span><strong>{safe(serviceTypesText)}</strong></div>
+                    <div className="vendor-detail-item"><span>Industry Type</span><strong>{safe(vendor.industryType)}</strong></div>
+                    <div className="vendor-detail-item"><span>Business Type</span><strong>{safe(vendor.businessType)}</strong></div>
+                    <div className="vendor-detail-item"><span>Years of Experience</span><strong>{safe(vendor.yearsExperience)}</strong></div>
+                    <div className="vendor-detail-item"><span>Estimated Workers</span><strong>{safe(vendor.workerCount)}</strong></div>
+                    <div className="vendor-detail-item vendor-detail-item-wide"><span>Specialization / Scope of Work</span><strong>{safe(vendor.specialization)}</strong></div>
+                    <div className="vendor-detail-item vendor-detail-item-wide"><span>Major Clients</span><strong>{safe(vendor.majorClients)}</strong></div>
+                    <div className="vendor-detail-item"><span>GST Registered</span><strong>{safe(vendor.gstRegistered)}</strong></div>
+                    {String(vendor.gstRegistered || '').toLowerCase() === 'yes' ? (
+                      <div className="vendor-detail-item"><span>GST Number</span><strong>{safe(vendor.gstNumber)}</strong></div>
+                    ) : null}
+                    <div className="vendor-detail-item"><span>PF Registered</span><strong>{safe(vendor.pfRegistered)}</strong></div>
+                    <div className="vendor-detail-item"><span>ESIC Registered</span><strong>{safe(vendor.esicRegistered)}</strong></div>
+                    <div className="vendor-detail-item"><span>Labour License</span><strong>{safe(vendor.labourLicense)}</strong></div>
+                  </div>
                 </article>
               ) : null}
 
@@ -300,46 +388,73 @@ function VendorProfilePage() {
                 {ratingStatus ? <p className="status-text">{ratingStatus}</p> : null}
               </div>
 
-              <div className="widget">
-                <div className="widget-title">Send Inquiry / Request Quote</div>
-                <form onSubmit={sendInquiry}>
-                  <div className="form-group">
-                    <label>Contact Name</label>
-                    <input
-                      className="form-control"
-                      value={inquiry.contactName}
-                      onChange={(event) => setInquiry((prev) => ({ ...prev, contactName: event.target.value }))}
-                    />
+              {isVendorVerified() ? (
+                <div className="widget">
+                  <div className="widget-title">Send Inquiry / Request Quote</div>
+                  <form onSubmit={sendInquiry}>
+                    <div className="form-group">
+                      <label>Contact Name</label>
+                      <input
+                        className="form-control"
+                        value={inquiry.contactName}
+                        onChange={(event) => setInquiry((prev) => ({ ...prev, contactName: event.target.value }))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Email</label>
+                      <input
+                        className="form-control"
+                        value={inquiry.contactEmail}
+                        onChange={(event) => setInquiry((prev) => ({ ...prev, contactEmail: event.target.value }))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Phone</label>
+                      <input
+                        className="form-control"
+                        value={inquiry.contactPhone}
+                        onChange={(event) => setInquiry((prev) => ({ ...prev, contactPhone: event.target.value }))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Message</label>
+                      <textarea
+                        className="form-control"
+                        rows={5}
+                        value={inquiry.message}
+                        onChange={(event) => setInquiry((prev) => ({ ...prev, message: event.target.value }))}
+                      />
+                    </div>
+                    <button type="submit" className="btn btn-primary">Send Inquiry</button>
+                  </form>
+                  {status && <p className="status-text">{status}</p>}
+                </div>
+              ) : (
+                <div className="widget">
+                  <div className="widget-title">Send Inquiry / Request Quote</div>
+                  <div className="verification-notice">
+                    <i className={`fa ${getVerificationStatus().icon}`} style={{ color: getVerificationStatus().color, fontSize: '24px', marginBottom: '10px' }}></i>
+                    <p style={{ color: getVerificationStatus().color, fontWeight: 'bold', margin: '10px 0' }}>
+                      Vendor Not Fully Verified
+                    </p>
+                    <p style={{ margin: '10px 0', fontSize: '14px' }}>
+                      This vendor is currently at <strong>{getVerificationStatus().text}</strong> stage.
+                    </p>
+                    <p style={{ margin: '10px 0', fontSize: '14px' }}>
+                      Inquiries can only be sent to fully verified vendors (Stage 4) to ensure quality and reliability.
+                    </p>
+                    <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '5px' }}>
+                      <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#495057' }}>Verification Stages:</h4>
+                      <ul style={{ margin: '0', paddingLeft: '20px', fontSize: '12px', color: '#495057' }}>
+                        <li style={{ margin: '5px 0' }}>Stage 1: Basic Registration</li>
+                        <li style={{ margin: '5px 0' }}>Stage 2: Profile Completion</li>
+                        <li style={{ margin: '5px 0' }}>Stage 3: Document Upload</li>
+                        <li style={{ margin: '5px 0', color: '#28a745', fontWeight: 'bold' }}>Stage 4: Admin Verified ✓</li>
+                      </ul>
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Email</label>
-                    <input
-                      className="form-control"
-                      value={inquiry.contactEmail}
-                      onChange={(event) => setInquiry((prev) => ({ ...prev, contactEmail: event.target.value }))}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Phone</label>
-                    <input
-                      className="form-control"
-                      value={inquiry.contactPhone}
-                      onChange={(event) => setInquiry((prev) => ({ ...prev, contactPhone: event.target.value }))}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Message</label>
-                    <textarea
-                      className="form-control"
-                      rows={5}
-                      value={inquiry.message}
-                      onChange={(event) => setInquiry((prev) => ({ ...prev, message: event.target.value }))}
-                    />
-                  </div>
-                  <button type="submit" className="btn btn-primary">Send Inquiry</button>
-                </form>
-                {status && <p className="status-text">{status}</p>}
-              </div>
+                </div>
+              )}
 
               <div className="widget">
                 <div className="widget-title">Author Info</div>

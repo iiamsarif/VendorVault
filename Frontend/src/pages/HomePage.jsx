@@ -181,7 +181,7 @@ function HomePage() {
               <h4>{vendor.companyName}</h4>
               <p>{truncateWords(vendor.companyDescription || 'Trusted industrial vendor in VendorVault Gujarat.', 10)}</p>
               <div className="vv-vendor-meta">
-                <i className="fas fa-map-marker-alt" /> {vendor.cityState || vendor.location || 'Gujarat'}
+                <i className="fas fa-map-marker-alt" /> {vendor.cityState || 'Gujarat'}
               </div>
             </Link>
           ))}
@@ -200,7 +200,9 @@ function HomePage() {
             <article key={item._id} className="vv-req-card reveal">
               <div>
                 <span className="vv-req-badge">{item.requirementCategory || 'REQUIREMENT'}</span>
-                <h5>{item.industryName || 'Industry Requirement'}</h5>
+                <Link to="/requirements" className="vv-req-title-link">
+                  <h5>{item.industryName || 'Industry Requirement'}</h5>
+                </Link>
                 <p>{item.projectDescription}</p>
               </div>
               <Link to="/requirements" className="vv-req-submit">SUBMIT PROPOSAL -&gt;</Link>
