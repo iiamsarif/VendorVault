@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { clearToken, decodeJwt, getBookmarkedVendors, getToken, getUserProfile } from './api';
+import brandLogo from '../assets/Logo.jpeg';
 
 function Navbar() {
   const location = useLocation();
@@ -86,8 +87,8 @@ function Navbar() {
       <div className="container">
         <nav className="vv-nav">
           <Link to="/" className="vv-logo">
-            <i className="fas fa-shield-alt" />
-            <span>VendorVault</span>
+            <img src={brandLogo} alt="VendorVault Gujarat" className="vv-logo-image" />
+            <span><span className="vv-logo-vendor">Vendor</span>Vault</span>
           </Link>
 
           <ul className="vv-nav-links">

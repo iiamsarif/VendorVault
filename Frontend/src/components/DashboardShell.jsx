@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { api, authHeader, clearToken, decodeJwt, getToken } from './api';
+import brandLogo from '../assets/Logo.jpeg';
 
 function DashboardShell({ role, title, links, children }) {
   const [open, setOpen] = useState(false);
@@ -53,7 +54,7 @@ function DashboardShell({ role, title, links, children }) {
           name: String(vendor.companyName || '').trim() || fallbackName,
           suspended: Boolean(vendor.suspended),
           paid: String(vendor.paid || 'None'),
-          silverAccess: String(vendor.paid || '') === 'Silver' || ['Verified Vendor', 'Premium Vendor'].includes(String(vendor.plan || ''))
+          silverAccess: String(vendor.paid || '') === 'Silver' || ['Verified Vendor', 'Premium Vendor'].includes(String(vendor.plan || vendor.subscriptionPlan || ''))
         });
       } catch (error) {
         setVendorMeta({ logo: '', name: fallbackName, suspended: false, paid: 'None', silverAccess: false });
@@ -75,8 +76,8 @@ function DashboardShell({ role, title, links, children }) {
         <aside className={`dashboard-sidebar admin-sidebar ${open ? 'active' : ''}`}>
           <div className="admin-logo-section">
             <div className="admin-logo-content">
-              <i className="fa-solid fa-shapes admin-logo-icon" />
-              <span className="admin-logo-text">Hope UI</span>
+              <img src={brandLogo} alt="VendorVault Gujarat" className="admin-logo-image" />
+              <span className="admin-logo-text">VendorVault Gujarat</span>
             </div>
             <button type="button" className="admin-close-sidebar" onClick={() => setOpen(false)}>
               <i className="fa-solid fa-xmark" />
@@ -118,7 +119,7 @@ function DashboardShell({ role, title, links, children }) {
             <div className="admin-top-right">
               <i className="fa-regular fa-bell" />
               <div className="admin-user-profile">
-                <img src="https://i.pravatar.cc/100?img=12" className="admin-avatar" alt="Admin" />
+                <img src="https://static.vecteezy.com/system/resources/thumbnails/051/498/303/small/social-media-chatting-online-default-male-blank-profile-picture-head-and-body-icon-people-standing-icon-grey-background-free-vector.jpg" className="admin-avatar" alt="Admin" />
                 <div className="admin-user-info">
                   <span className="admin-user-name">{adminName}</span>
                   <span className="admin-user-role">Admin</span>
@@ -157,7 +158,7 @@ function DashboardShell({ role, title, links, children }) {
                 end={link.end}
                 onClick={(event) => {
                   const lockByPlan =
-                    (link.to === '/vendor/dashboard/listings' || link.to === '/vendor/dashboard/profile-views') &&
+                    (link.to === '/vendor/dashboard/listings' || link.to === '/vendor/dashboard/profile-views' || link.to === '/vendor/dashboard/inquiries') &&
                     !vendorMeta.silverAccess;
                   if (lockByPlan) {
                     event.preventDefault();
@@ -167,7 +168,7 @@ function DashboardShell({ role, title, links, children }) {
                 }}
                 className={({ isActive }) => {
                   const lockByPlan =
-                    (link.to === '/vendor/dashboard/listings' || link.to === '/vendor/dashboard/profile-views') &&
+                    (link.to === '/vendor/dashboard/listings' || link.to === '/vendor/dashboard/profile-views' || link.to === '/vendor/dashboard/inquiries') &&
                     !vendorMeta.silverAccess;
                   return `vendor-nav-item ${isActive ? 'active' : ''} ${lockByPlan ? 'is-locked' : ''}`;
                 }}
@@ -175,7 +176,7 @@ function DashboardShell({ role, title, links, children }) {
                 <i className={link.icon || 'fa fa-circle'} />
                 <span>{link.label}</span>
                 {link.badge ? <em className={`vendor-badge ${link.badgeClass || ''}`}>{link.badge}</em> : null}
-                {(link.to === '/vendor/dashboard/listings' || link.to === '/vendor/dashboard/profile-views') && !vendorMeta.silverAccess ? (
+                {(link.to === '/vendor/dashboard/listings' || link.to === '/vendor/dashboard/profile-views' || link.to === '/vendor/dashboard/inquiries') && !vendorMeta.silverAccess ? (
                   <em className="vendor-crown-lock"><i className="fa-solid fa-crown" /></em>
                 ) : null}
               </NavLink>
@@ -194,9 +195,16 @@ function DashboardShell({ role, title, links, children }) {
               </div>
             </div>
             <div className="vendor-top-right">
-              <Link to="/vendor/dashboard/inquiries" className="vendor-top-icon" title="View inquiries">
-                <i className="fa fa-envelope" />
-              </Link>
+              {vendorMeta.silverAccess ? (
+                <Link to="/vendor/dashboard/inquiries" className="vendor-top-icon" title="View inquiries">
+                  <i className="fa fa-envelope" />
+                </Link>
+              ) : (
+                <div className="vendor-top-icon vendor-top-icon-locked" title="Upgrade to view inquiries">
+                  <i className="fa fa-envelope" />
+                  <i className="fa-solid fa-crown vendor-crown-lock-small" />
+                </div>
+              )}
               <div className="vendor-user-chip">
                 <img src={vendorMeta.logo || 'https://i.pravatar.cc/100?img=32'} alt="Vendor" />
                 <div>
