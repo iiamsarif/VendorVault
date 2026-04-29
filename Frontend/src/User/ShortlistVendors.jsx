@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+ï»¿import React, { useEffect, useState } from 'react';
 import { api } from '../components/api';
 
 function ShortlistVendors() {
@@ -26,7 +26,7 @@ function ShortlistVendors() {
         {vendors.map((vendor) => (
           <article key={vendor._id} className="white-card">
             <h3>{vendor.companyName}</h3>
-            <p>{vendor.category} • {vendor.location}</p>
+            <p>{vendor.category} - {vendor.cityState || "Location not specified"}</p>
           </article>
         ))}
         {!vendors.length && <p className="empty-text">No shortlisted vendors yet.</p>}

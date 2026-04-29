@@ -26,7 +26,7 @@ function ViewVendorDirectory() {
           <article key={vendor._id} className="white-card">
             <h3>{vendor.companyName}</h3>
             <p>{vendor.category}</p>
-            <p>{vendor.location}</p>
+            <p>{vendor.cityState || 'Location not specified'}</p>
             <Link className="btn btn-primary" to={`/vendors/${vendor._id}`}>View Profile</Link>
           </article>
         ))}
