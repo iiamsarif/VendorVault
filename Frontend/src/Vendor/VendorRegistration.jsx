@@ -12,9 +12,22 @@ function VendorRegistration() {
     email: '',
     officeAddress: '',
     cityState: '',
+    city: '',
     category: '',
     servicesOffered: '',
     yearsExperience: '',
+    primaryServiceArea: '',
+    serviceTypes: '',
+    workerCount: '',
+    specialization: '',
+    businessType: '',
+    gstRegistered: '',
+    gstNumber: '',
+    pfRegistered: '',
+    esicRegistered: '',
+    labourLicense: '',
+    majorClients: '',
+    declaration: false,
     companyLogo: null,
     documents: [],
     certificates: [],
@@ -98,9 +111,24 @@ function VendorRegistration() {
       formData.append('email', form.email);
       formData.append('officeAddress', form.officeAddress);
       formData.append('cityState', form.cityState);
+      formData.append('city', form.city);
       formData.append('category', form.category);
       formData.append('servicesOffered', form.servicesOffered);
       formData.append('yearsExperience', String(Number(form.yearsExperience || 0)));
+      formData.append('primaryServiceArea', form.primaryServiceArea);
+      formData.append('serviceTypes', form.serviceTypes);
+      formData.append('workerCount', form.workerCount);
+      formData.append('specialization', form.specialization);
+      formData.append('businessType', form.businessType);
+      formData.append('gstRegistered', form.gstRegistered);
+      formData.append('gstNumber', form.gstNumber);
+      formData.append('pfRegistered', form.pfRegistered);
+      formData.append('esicRegistered', form.esicRegistered);
+      formData.append('labourLicense', form.labourLicense);
+      formData.append('majorClients', form.majorClients);
+      formData.append('annualRegistrationPlan', '');
+      formData.append('preferredPaymentMethod', '');
+      formData.append('declaration', form.declaration ? 'I agree and declare the information is accurate.' : '');
       formData.append('password', form.password);
 
       if (form.companyLogo) {
@@ -180,9 +208,15 @@ function VendorRegistration() {
               </div>
 
               <div className="auth-theme-input-group">
-                <label htmlFor="city-state">City / State</label>
+                <label htmlFor="city-state">City/State</label>
                 <input id="city-state" value={form.cityState} onChange={(event) => setForm((prev) => ({ ...prev, cityState: event.target.value }))} />
                 {fieldError('cityState')}
+              </div>
+
+              <div className="auth-theme-input-group">
+                <label htmlFor="city">City</label>
+                <input id="city" value={form.city} onChange={(event) => setForm((prev) => ({ ...prev, city: event.target.value }))} />
+                {fieldError('city')}
               </div>
 
               <div className="auth-theme-input-group">
@@ -200,9 +234,108 @@ function VendorRegistration() {
                 {fieldError('servicesOffered')}
               </div>
 
+              <div className="auth-theme-input-group vendor-auth-full">
+                <label htmlFor="primary-service-area">Primary Service Area (comma separated)</label>
+                <input id="primary-service-area" value={form.primaryServiceArea} onChange={(event) => setForm((prev) => ({ ...prev, primaryServiceArea: event.target.value }))} />
+              </div>
+
+              <div className="auth-theme-input-group vendor-auth-full">
+                <label htmlFor="service-types">Type of Service Provided (comma separated)</label>
+                <input id="service-types" value={form.serviceTypes} onChange={(event) => setForm((prev) => ({ ...prev, serviceTypes: event.target.value }))} />
+              </div>
+
               <div className="auth-theme-input-group">
                 <label htmlFor="experience-years">Years of Experience</label>
                 <input id="experience-years" type="number" value={form.yearsExperience} onChange={(event) => setForm((prev) => ({ ...prev, yearsExperience: event.target.value }))} />
+              </div>
+
+              <div className="auth-theme-input-group">
+                <label htmlFor="worker-count">Estimated Workers</label>
+                <input id="worker-count" value={form.workerCount} onChange={(event) => setForm((prev) => ({ ...prev, workerCount: event.target.value }))} />
+              </div>
+
+              <div className="auth-theme-input-group vendor-auth-full">
+                <label htmlFor="specialization">Specialization / Scope of Work</label>
+                <input id="specialization" value={form.specialization} onChange={(event) => setForm((prev) => ({ ...prev, specialization: event.target.value }))} />
+              </div>
+
+              <div className="auth-theme-input-group">
+                <label htmlFor="business-type">Business Type</label>
+                <input id="business-type" value={form.businessType} onChange={(event) => setForm((prev) => ({ ...prev, businessType: event.target.value }))} />
+              </div>
+
+              <div className="auth-theme-input-group">
+                <label htmlFor="gst-registered">GST Registered?</label>
+                <select
+                  id="gst-registered"
+                  value={form.gstRegistered}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      gstRegistered: event.target.value,
+                      gstNumber: event.target.value === 'Yes' ? prev.gstNumber : ''
+                    }))
+                  }
+                >
+                  <option value="">Select</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              {form.gstRegistered === 'Yes' && (
+                <div className="auth-theme-input-group">
+                  <label htmlFor="gst-number">GST Number</label>
+                  <input id="gst-number" value={form.gstNumber} onChange={(event) => setForm((prev) => ({ ...prev, gstNumber: event.target.value }))} />
+                </div>
+              )}
+
+              <div className="auth-theme-input-group">
+                <label htmlFor="pf-registered">PF Registered?</label>
+                <select id="pf-registered" value={form.pfRegistered} onChange={(event) => setForm((prev) => ({ ...prev, pfRegistered: event.target.value }))}>
+                  <option value="">Select</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              <div className="auth-theme-input-group">
+                <label htmlFor="esic-registered">ESIC Registered?</label>
+                <select id="esic-registered" value={form.esicRegistered} onChange={(event) => setForm((prev) => ({ ...prev, esicRegistered: event.target.value }))}>
+                  <option value="">Select</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              <div className="auth-theme-input-group">
+                <label htmlFor="labour-license">Labour License?</label>
+                <select id="labour-license" value={form.labourLicense} onChange={(event) => setForm((prev) => ({ ...prev, labourLicense: event.target.value }))}>
+                  <option value="">Select</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              <div className="auth-theme-input-group vendor-auth-full">
+                <label htmlFor="major-clients">Major Clients</label>
+                <input id="major-clients" value={form.majorClients} onChange={(event) => setForm((prev) => ({ ...prev, majorClients: event.target.value }))} />
+              </div>
+
+              <div className="auth-theme-input-group vendor-auth-full">
+                <label
+                  htmlFor="declaration"
+                  style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '8px', textAlign: 'left', cursor: 'pointer' }}
+                >
+                  <input
+                    id="declaration"
+                    type="checkbox"
+                    checked={Boolean(form.declaration)}
+                    onChange={(event) => setForm((prev) => ({ ...prev, declaration: event.target.checked }))}
+                    style={{ marginTop: '2px', width: '16px', height: '16px', flex: '0 0 16px' }}
+                  />
+                  I agree and declare the information is accurate.
+                </label>
               </div>
 
               <div className="auth-theme-input-group">

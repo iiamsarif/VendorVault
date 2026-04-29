@@ -1,7 +1,8 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { api, authHeader } from '../components/api';
+import { api, authHeader, decodeJwt, getToken } from '../components/api';
 
 function ViewInquiries() {
+  console.log('=== ViewInquiries Component Mounting ===');
   const [inquiries, setInquiries] = useState([]);
   const [status, setStatus] = useState('');
   const [replyingInquiry, setReplyingInquiry] = useState(null);
@@ -53,6 +54,7 @@ function ViewInquiries() {
     return `${parts[0][0] || ''}${parts[1]?.[0] || ''}`.toUpperCase();
   };
 
+  console.log('=== SHOWING NORMAL INQUIRIES CONTENT ===');
   return (
     <div>
       <div className="section-head"><h1>View Inquiries</h1></div>
