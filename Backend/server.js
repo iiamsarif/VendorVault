@@ -140,13 +140,37 @@ async function initializeIndexes(database) {
   await Promise.all([
     database.collection(COLLECTIONS.VENDORS).createIndexes([
       { key: { category: 1 } },
-      { key: { location: 1 } },
       { key: { verified: 1 } },
       { key: { rating: -1 } },
       { key: { subscriptionPlan: 1 } },
-      { key: { createdAt: -1 } },
-      { key: { companyName: 'text', servicesOffered: 'text', location: 'text', industryType: 'text' } }
-    ]),
+      { key: { createdAt: -1 } }
+    ]).catch((error) => {
+      if (error.codeName === 'IndexOptionsConflict') {
+        console.log('[INDEX] Vendor indexes already exist with different options, skipping...');
+        return;
+      }
+      throw error;
+    }),
+    database.collection(COLLECTIONS.VENDORS).createIndex(
+      { companyName: 'text', servicesOffered: 'text', industryType: 'text', cityState: 'text' },
+      { name: 'vendor_text_search_index' }
+    ).catch((error) => {
+      if (error.codeName === 'IndexOptionsConflict') {
+        console.log('[INDEX] Text search index conflict, trying to drop existing indexes...');
+        // First try to drop the old location-based index
+        return database.collection(COLLECTIONS.VENDORS).dropIndex('companyName_text_servicesOffered_text_location_text_industryType_text')
+          .catch(() => {
+            console.log('[INDEX] Old index not found, continuing...');
+          })
+          .then(() => {
+            return database.collection(COLLECTIONS.VENDORS).createIndex(
+              { companyName: 'text', servicesOffered: 'text', industryType: 'text', cityState: 'text' },
+              { name: 'vendor_text_search_index' }
+            );
+          });
+      }
+      throw error;
+    }),
     database.collection(COLLECTIONS.REQUIREMENTS).createIndexes([
       { key: { requirementCategory: 1 } },
       { key: { location: 1 } },
@@ -480,11 +504,35 @@ function normalizeVendorPayload(body = {}) {
     galleryImages: Array.isArray(body.galleryImages) ? body.galleryImages : [],
     documents: Array.isArray(body.documents) ? body.documents : [],
     certificates: Array.isArray(body.certificates) ? body.certificates : [],
-    location: sanitizeString(body.location || body.cityState),
     industryType: sanitizeString(body.industryType),
     companyDescription: sanitizeString(body.companyDescription),
     industriesServed: Array.isArray(body.industriesServed) ? body.industriesServed : [],
-    planBadge: sanitizeString(body.planBadge || 'Visibility')
+    planBadge: sanitizeString(body.planBadge || 'Visibility'),
+    city: sanitizeString(body.city),
+    primaryServiceArea: Array.isArray(body.primaryServiceArea)
+      ? body.primaryServiceArea.map((item) => sanitizeString(item)).filter(Boolean)
+      : String(body.primaryServiceArea || '')
+          .split(',')
+          .map((item) => sanitizeString(item))
+          .filter(Boolean),
+    serviceTypes: Array.isArray(body.serviceTypes)
+      ? body.serviceTypes.map((item) => sanitizeString(item)).filter(Boolean)
+      : String(body.serviceTypes || '')
+          .split(',')
+          .map((item) => sanitizeString(item))
+          .filter(Boolean),
+    workerCount: sanitizeString(body.workerCount),
+    specialization: sanitizeString(body.specialization),
+    businessType: sanitizeString(body.businessType),
+    gstRegistered: sanitizeString(body.gstRegistered),
+    gstNumber: sanitizeString(body.gstNumber),
+    pfRegistered: sanitizeString(body.pfRegistered),
+    esicRegistered: sanitizeString(body.esicRegistered),
+    labourLicense: sanitizeString(body.labourLicense),
+    majorClients: sanitizeString(body.majorClients),
+    annualRegistrationPlan: sanitizeString(body.annualRegistrationPlan),
+    preferredPaymentMethod: sanitizeString(body.preferredPaymentMethod),
+    declaration: sanitizeString(body.declaration)
   };
 }
 
@@ -600,9 +648,23 @@ async function updateVendorProfile(req, res, next) {
     if (hasField('companyDescription')) updateSet.companyDescription = payload.companyDescription;
     if (hasField('industriesServed')) updateSet.industriesServed = payload.industriesServed;
     if (hasField('planBadge')) updateSet.planBadge = payload.planBadge;
+    if (hasField('city')) updateSet.city = payload.city;
+    if (hasField('primaryServiceArea')) updateSet.primaryServiceArea = payload.primaryServiceArea;
+    if (hasField('serviceTypes')) updateSet.serviceTypes = payload.serviceTypes;
+    if (hasField('workerCount')) updateSet.workerCount = payload.workerCount;
+    if (hasField('specialization')) updateSet.specialization = payload.specialization;
+    if (hasField('businessType')) updateSet.businessType = payload.businessType;
+    if (hasField('gstRegistered')) updateSet.gstRegistered = payload.gstRegistered;
+    if (hasField('gstNumber')) updateSet.gstNumber = payload.gstNumber;
+    if (hasField('pfRegistered')) updateSet.pfRegistered = payload.pfRegistered;
+    if (hasField('esicRegistered')) updateSet.esicRegistered = payload.esicRegistered;
+    if (hasField('labourLicense')) updateSet.labourLicense = payload.labourLicense;
+    if (hasField('majorClients')) updateSet.majorClients = payload.majorClients;
+    if (hasField('annualRegistrationPlan')) updateSet.annualRegistrationPlan = payload.annualRegistrationPlan;
+    if (hasField('preferredPaymentMethod')) updateSet.preferredPaymentMethod = payload.preferredPaymentMethod;
+    if (hasField('declaration')) updateSet.declaration = payload.declaration;
     if (hasField('yearsExperience')) updateSet.yearsExperience = payload.yearsExperience;
     if (hasField('servicesOffered')) updateSet.servicesOffered = payload.servicesOffered;
-    if (hasField('location') || hasField('cityState')) updateSet.location = payload.location;
 
     const uploadedLogo = req.files?.companyLogo?.[0];
     const uploadedGalleryImages = req.files?.galleryImages || [];
@@ -669,7 +731,6 @@ async function getVendorListings(req, res, next) {
     const database = getDB();
     const {
       category,
-      location,
       industryType,
       verified,
       topRated,
@@ -688,7 +749,6 @@ async function getVendorListings(req, res, next) {
         { categories: category }
       ];
     }
-    if (location) match.location = { $regex: location, $options: 'i' };
     if (industryType) match.industryType = { $regex: industryType, $options: 'i' };
     if (verified === 'true') match.verified = true;
     if (premium === 'true') match.subscriptionPlan = 'Premium Vendor';
@@ -699,8 +759,8 @@ async function getVendorListings(req, res, next) {
         { category: { $regex: search, $options: 'i' } },
         { categories: { $elemMatch: { $regex: search, $options: 'i' } } },
         { servicesOffered: { $elemMatch: { $regex: search, $options: 'i' } } },
-        { location: { $regex: search, $options: 'i' } },
-        { industryType: { $regex: search, $options: 'i' } }
+        { industryType: { $regex: search, $options: 'i' } },
+        { cityState: { $regex: search, $options: 'i' } }
       ];
       if (match.$or) {
         match.$and = [{ $or: match.$or }, { $or: searchConditions }];
@@ -774,9 +834,23 @@ async function updateVendorByAdmin(req, res, next) {
     if (hasField('industryType')) updateSet.industryType = payload.industryType;
     if (hasField('companyDescription')) updateSet.companyDescription = payload.companyDescription;
     if (hasField('industriesServed')) updateSet.industriesServed = payload.industriesServed;
+    if (hasField('city')) updateSet.city = payload.city;
+    if (hasField('primaryServiceArea')) updateSet.primaryServiceArea = payload.primaryServiceArea;
+    if (hasField('serviceTypes')) updateSet.serviceTypes = payload.serviceTypes;
+    if (hasField('workerCount')) updateSet.workerCount = payload.workerCount;
+    if (hasField('specialization')) updateSet.specialization = payload.specialization;
+    if (hasField('businessType')) updateSet.businessType = payload.businessType;
+    if (hasField('gstRegistered')) updateSet.gstRegistered = payload.gstRegistered;
+    if (hasField('gstNumber')) updateSet.gstNumber = payload.gstNumber;
+    if (hasField('pfRegistered')) updateSet.pfRegistered = payload.pfRegistered;
+    if (hasField('esicRegistered')) updateSet.esicRegistered = payload.esicRegistered;
+    if (hasField('labourLicense')) updateSet.labourLicense = payload.labourLicense;
+    if (hasField('majorClients')) updateSet.majorClients = payload.majorClients;
+    if (hasField('annualRegistrationPlan')) updateSet.annualRegistrationPlan = payload.annualRegistrationPlan;
+    if (hasField('preferredPaymentMethod')) updateSet.preferredPaymentMethod = payload.preferredPaymentMethod;
+    if (hasField('declaration')) updateSet.declaration = payload.declaration;
     if (hasField('yearsExperience')) updateSet.yearsExperience = payload.yearsExperience;
     if (hasField('servicesOffered')) updateSet.servicesOffered = payload.servicesOffered;
-    if (hasField('location') || hasField('cityState')) updateSet.location = payload.location;
     if (hasField('verified')) updateSet.verified = Boolean(req.body.verified);
     if (hasField('approved')) updateSet.approved = Boolean(req.body.approved);
     if (hasField('featured')) updateSet.featured = Boolean(req.body.featured);
@@ -978,6 +1052,109 @@ async function getVendorSelfProfile(req, res, next) {
   }
 }
 
+async function getVendors(req, res, next) {
+  try {
+    const database = getDB();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const vendors = await database
+      .collection(COLLECTIONS.VENDORS)
+      .find({})
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const totalVendors = await database.collection(COLLECTIONS.VENDORS).countDocuments();
+    const totalPages = Math.ceil(totalVendors / limit);
+
+    return res.status(200).json({
+      vendors,
+      currentPage: page,
+      totalPages,
+      totalVendors
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getUsers(req, res, next) {
+  try {
+    const database = getDB();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const users = await database
+      .collection(COLLECTIONS.USERS)
+      .find({})
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const totalUsers = await database.collection(COLLECTIONS.USERS).countDocuments();
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    return res.status(200).json({
+      users,
+      currentPage: page,
+      totalPages,
+      totalUsers
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateUser(req, res, next) {
+  try {
+    const database = getDB();
+    const { userId, ...updateData } = req.body;
+
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: 'Invalid user id.' });
+    }
+
+    const result = await database.collection(COLLECTIONS.USERS).updateOne(
+      { _id: new ObjectId(userId) },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    return res.status(200).json({ message: 'User updated successfully.' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function deleteUser(req, res, next) {
+  try {
+    const database = getDB();
+    const { userId } = req.params;
+
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: 'Invalid user id.' });
+    }
+
+    const result = await database.collection(COLLECTIONS.USERS).deleteOne({ _id: new ObjectId(userId) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    return res.status(200).json({ message: 'User deleted successfully.' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function getVendorAnalytics(req, res, next) {
   try {
     const database = getDB();
@@ -997,6 +1174,13 @@ async function getVendorAnalytics(req, res, next) {
         { $count: 'total' }
       ])
       .toArray();
+
+    console.log('Vendor Analytics Data for View Inquiries:', {
+      subscriptionPlan: vendor?.subscriptionPlan,
+      paid: vendor?.paid,
+      verified: vendor?.verified,
+      vendorId: req.auth.id
+    });
 
     return res.status(200).json({
       profileViews: vendor?.profileViews || 0,
@@ -2034,17 +2218,27 @@ async function verifyVendor(req, res, next) {
 async function manageCategories(req, res, next) {
   try {
     const database = getDB();
+    console.log('=== MANAGE CATEGORIES API ===');
+    console.log('Request method:', req.method);
+    console.log('Request body:', req.body);
+    
     if (req.method === 'GET') {
+      console.log('Loading categories from database...');
       const record = await database.collection(COLLECTIONS.VENDOR_CATEGORIES).findOne({ title: 'default-categories' });
+      console.log('Categories from database:', record);
       return res.status(200).json(record?.categories || []);
     }
 
     const categories = Array.isArray(req.body.categories) ? req.body.categories : [];
+    console.log('Categories to save:', categories);
+    
     if (!categories.length) {
+      console.log('No categories provided');
       return res.status(400).json({ message: 'categories array is required.' });
     }
 
-    await database.collection(COLLECTIONS.VENDOR_CATEGORIES).updateOne(
+    console.log('Updating database...');
+    const result = await database.collection(COLLECTIONS.VENDOR_CATEGORIES).updateOne(
       { title: 'default-categories' },
       {
         $set: {
@@ -2058,6 +2252,11 @@ async function manageCategories(req, res, next) {
       },
       { upsert: true }
     );
+    console.log('Database update result:', result);
+
+    // Verify the update
+    const updatedRecord = await database.collection(COLLECTIONS.VENDOR_CATEGORIES).findOne({ title: 'default-categories' });
+    console.log('Updated record verification:', updatedRecord);
 
     await database.collection(COLLECTIONS.ADMIN_LOGS).insertOne({
       action: 'update_categories',
@@ -2066,8 +2265,10 @@ async function manageCategories(req, res, next) {
       createdAt: new Date()
     });
 
+    console.log('Categories updated successfully');
     return res.status(200).json({ message: 'Categories updated successfully.', categories });
   } catch (error) {
+    console.log('Error in manageCategories:', error);
     return next(error);
   }
 }
@@ -2251,8 +2452,50 @@ async function getIndustryCategoriesPublic(req, res, next) {
 async function getAdminRequirements(req, res, next) {
   try {
     const database = getDB();
-    const requirements = await database.collection(COLLECTIONS.REQUIREMENTS).find({}).sort({ createdAt: -1 }).toArray();
-    return res.status(200).json(requirements);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const requirements = await database
+      .collection(COLLECTIONS.REQUIREMENTS)
+      .find({})
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const totalRequirements = await database.collection(COLLECTIONS.REQUIREMENTS).countDocuments();
+    const totalPages = Math.ceil(totalRequirements / limit);
+
+    return res.status(200).json({
+      requirements,
+      currentPage: page,
+      totalPages,
+      totalRequirements
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function deleteAdminRequirement(req, res, next) {
+  try {
+    const database = getDB();
+    const requirementId = req.params.requirementId;
+
+    if (!ObjectId.isValid(requirementId)) {
+      return res.status(400).json({ message: 'Invalid requirement id.' });
+    }
+
+    const result = await database.collection(COLLECTIONS.REQUIREMENTS).deleteOne({
+      _id: new ObjectId(requirementId)
+    });
+
+    if (!result.deletedCount) {
+      return res.status(404).json({ message: 'Requirement not found.' });
+    }
+
+    return res.status(200).json({ message: 'Requirement deleted successfully.' });
   } catch (error) {
     return next(error);
   }
@@ -2261,6 +2504,18 @@ async function getAdminRequirements(req, res, next) {
 async function getAdminStats(req, res, next) {
   try {
     const database = getDB();
+
+    const subscriptionStats = await database
+      .collection(COLLECTIONS.VENDORS)
+      .aggregate([
+        {
+          $group: {
+            _id: '$subscriptionPlan',
+            count: { $sum: 1 }
+          }
+        }
+      ])
+      .toArray();
 
     const [totals] = await database
       .collection(COLLECTIONS.VENDORS)
@@ -2271,7 +2526,7 @@ async function getAdminStats(req, res, next) {
             totalVendors: { $sum: 1 },
             approvedVendors: { $sum: { $cond: ['$approved', 1, 0] } },
             verifiedVendors: { $sum: { $cond: ['$verified', 1, 0] } },
-            premiumVendors: { $sum: { $cond: [{ $eq: ['$subscriptionPlan', 'Premium Vendor'] }, 1, 0] } }
+            premiumVendors: { $sum: { $cond: [{ $in: ['$subscriptionPlan', ['Premium Vendor', 'Verified Vendor']] }, 1, 0] } }
           }
         }
       ])
@@ -2290,20 +2545,16 @@ async function getAdminStats(req, res, next) {
       ])
       .toArray();
 
-    const subscriptionStats = await database
-      .collection(COLLECTIONS.SUBSCRIPTIONS)
-      .aggregate([
-        {
-          $group: {
-            _id: '$plan',
-            count: { $sum: 1 }
-          }
-        }
-      ])
-      .toArray();
-
+    const industryCount = await database.collection(COLLECTIONS.USERS).countDocuments();
     const requirementCount = await database.collection(COLLECTIONS.REQUIREMENTS).countDocuments();
-    const industryCount = await database.collection(COLLECTIONS.INDUSTRIES).countDocuments();
+
+    console.log('Vendor Analytics Response:', {
+      vendors: totals || { totalVendors: 0, approvedVendors: 0, verifiedVendors: 0, premiumVendors: 0 },
+      inquiries: inquiryStats || { totalInquiries: 0, openInquiries: 0 },
+      subscriptions: subscriptionStats,
+      requirements: requirementCount,
+      industries: industryCount
+    });
 
     return res.status(200).json({
       vendors: totals || { totalVendors: 0, approvedVendors: 0, verifiedVendors: 0, premiumVendors: 0 },
@@ -2377,7 +2628,7 @@ async function getAdminPaidVendors(req, res, next) {
           email: vendor.email || '',
           mobileNumber: vendor.mobileNumber || '',
           category: vendor.category || '',
-          location: vendor.cityState || vendor.location || '',
+          location: vendor.cityState || '',
           logo: vendor.logo || '',
           paid: vendor.paid || 'None',
           subscriptionPlan: vendor.subscriptionPlan || 'Free Vendor Listing',
@@ -2538,9 +2789,14 @@ adminRoutes.post('/categories', requireAuth(['admin']), manageCategories);
 adminRoutes.get('/industry-categories', requireAuth(['admin']), manageIndustryCategories);
 adminRoutes.post('/industry-categories', requireAuth(['admin']), manageIndustryCategories);
 adminRoutes.get('/requirements', requireAuth(['admin']), getAdminRequirements);
+adminRoutes.delete('/requirements/:requirementId', requireAuth(['admin']), deleteAdminRequirement);
 adminRoutes.get('/stats', requireAuth(['admin']), getAdminStats);
+adminRoutes.get('/vendors', requireAuth(['admin']), getVendors);
 adminRoutes.get('/subscriptions/paid-vendors', requireAuth(['admin']), getAdminPaidVendors);
 adminRoutes.post('/subscriptions/set-tier', requireAuth(['admin']), setVendorSubscriptionTierByAdmin);
+adminRoutes.get('/users', requireAuth(['admin']), getUsers);
+adminRoutes.put('/users/update', requireAuth(['admin']), updateUser);
+adminRoutes.delete('/users/:userId', requireAuth(['admin']), deleteUser);
 
 const vendorRoutes = express.Router();
 vendorRoutes.post('/register', maybeHandleVendorUploads, registerVendor);
