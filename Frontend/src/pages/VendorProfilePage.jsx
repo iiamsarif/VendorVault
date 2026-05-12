@@ -152,6 +152,14 @@ function VendorProfilePage() {
   const primaryServiceAreaText = Array.isArray(vendor.primaryServiceArea) ? vendor.primaryServiceArea.join(', ') : '';
   const serviceTypesText = Array.isArray(vendor.serviceTypes) ? vendor.serviceTypes.join(', ') : '';
   const categoriesText = Array.isArray(vendor.categories) ? vendor.categories.join(', ') : '';
+  const serviceItems = Array.isArray(vendor.serviceItems)
+    ? vendor.serviceItems
+        .map((item) => ({
+          name: String(item?.name || '').trim(),
+          description: String(item?.description || '').trim()
+        }))
+        .filter((item) => item.name)
+    : [];
   const safe = (value) => {
     if (Array.isArray(value)) return value.length ? value.join(', ') : '-';
     return String(value || '').trim() || '-';
@@ -270,6 +278,23 @@ function VendorProfilePage() {
                     <h3>Services Offered</h3>
                   </div>
                   <p>{(vendor.servicesOffered || []).join(', ') || 'No services added.'}</p>
+
+                  <div className="header-with-icon">
+                    <div className="icon-box"><i className="fa fa-screwdriver-wrench" /></div>
+                    <h3>Services</h3>
+                  </div>
+                  {serviceItems.length ? (
+                    <div className="vendor-services-list">
+                      {serviceItems.map((item, index) => (
+                        <div className="vendor-service-item" key={`${item.name}-${index}`}>
+                          <h4>{item.name}</h4>
+                          <p>{item.description || 'No description provided.'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>No detailed services added.</p>
+                  )}
 
                   <div className="header-with-icon">
                     <div className="icon-box"><i className="fa fa-industry" /></div>

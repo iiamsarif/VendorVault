@@ -5,7 +5,7 @@ import { api, truncateWords } from '../components/api';
 const defaultFilters = {
   category: '',
   location: '',
-  industryType: '',
+  verification: '',
   reviewMin: '',
   highlight: '',
   search: ''
@@ -51,6 +51,7 @@ function VendorDirectoryPage() {
         const query = new URLSearchParams();
         Object.entries(filters).forEach(([key, value]) => {
           if (key === 'highlight') return;
+          if (key === 'verification') return;
           if (value === true) query.append(key, 'true');
           if (value && value !== true) query.append(key, value);
         });
@@ -59,6 +60,8 @@ function VendorDirectoryPage() {
         if (filters.highlight === 'topRated') query.append('topRated', 'true');
         if (filters.highlight === 'newVendors') query.append('newVendors', 'true');
         if (filters.highlight === 'premium') query.append('premium', 'true');
+        if (filters.verification === 'verified') query.append('verified', 'true');
+        if (filters.verification === 'unverified') query.append('unverified', 'true');
 
         const response = await api.get(`/vendor/listings?${query.toString()}`);
         setVendors(response.data || []);
@@ -181,12 +184,23 @@ function VendorDirectoryPage() {
           </div>
 
           <div className="filter-group">
-            <p className="filter-label">Industry Type</p>
-            <input
-              value={filters.industryType}
-              onChange={(event) => setFilters((prev) => ({ ...prev, industryType: event.target.value }))}
-              placeholder="Type industry"
-            />
+            <p className="filter-label">Verification</p>
+            <label>
+              <input
+                type="checkbox"
+                checked={filters.verification === 'verified'}
+                onChange={() => setFilters((prev) => ({ ...prev, verification: prev.verification === 'verified' ? '' : 'verified' }))}
+              />
+              Verified
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={filters.verification === 'unverified'}
+                onChange={() => setFilters((prev) => ({ ...prev, verification: prev.verification === 'unverified' ? '' : 'unverified' }))}
+              />
+              Unverified
+            </label>
           </div>
         </aside>
 
@@ -205,6 +219,10 @@ function VendorDirectoryPage() {
             const cover = imageList[activeIndex];
             const avatar = toFileUrl(vendor.companyLogo) || 'https://i.pravatar.cc/100?img=12';
             const ratingValue = Number(vendor.rating || 0).toFixed(1);
+            const selectedCategory = String(filters.category || '').trim();
+            const vendorCategories = Array.isArray(vendor.categories) ? vendor.categories : [];
+            const matchedSelectedCategory = selectedCategory && (vendor.category === selectedCategory || vendorCategories.includes(selectedCategory));
+            const displayCategory = matchedSelectedCategory ? selectedCategory : (vendor.category || '-');
 
             return (
               <article
@@ -267,7 +285,7 @@ function VendorDirectoryPage() {
                   <div className="card-meta">{truncateWords(vendor.companyDescription || 'Trusted industrial service provider in Gujarat.', 10)}</div>
 
                   <div className="card-footer">
-                    <div><i className="fa-solid fa-bowl-food" style={{ marginRight: '8px' }} /> {vendor.category}</div>
+                    <div><i className="fa-solid fa-bowl-food" style={{ marginRight: '8px' }} /> {displayCategory}</div>
                     <div className="button-row">
                       <a className="btn btn-ghost" href={`tel:${vendor.mobileNumber || ''}`} onClick={(event) => event.stopPropagation()}>Call</a>
                       <a className="btn btn-secondary" href={`https://wa.me/${(vendor.whatsappNumber || '').replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>WhatsApp</a>

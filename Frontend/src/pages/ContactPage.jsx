@@ -20,9 +20,9 @@ function ContactPage() {
         <article className="white-card contact-theme-card">
           <h1>Contact Us</h1>
           <p>Reach our partnership and support team for onboarding and platform assistance.</p>
-          <p><strong>Email:</strong> support@vendorvaultgujarat.in</p>
-          <p><strong>Phone:</strong> +91 99999 99999</p>
-          <p><strong>Location:</strong> Ahmedabad, Gujarat</p>
+          <p><strong>Email:</strong> support@vendorvaultgujarat.in / contact@vendorvault.in</p>
+          <p><strong>Phone:</strong> +91 84016 05796</p>
+          <p><strong>Location:</strong> Bharuch, Gujarat</p>
         </article>
         <article className="white-card contact-theme-card">
           <form onSubmit={submitForm} className="form-grid contact-theme-form">
