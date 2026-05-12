@@ -33,6 +33,7 @@ function VendorRegistration() {
     certificates: [],
     password: ''
   });
+  const [serviceItems, setServiceItems] = useState([{ name: '', description: '' }]);
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState('');
   const [dbCategories, setDbCategories] = useState([]);
@@ -64,7 +65,6 @@ function VendorRegistration() {
       'officeAddress',
       'cityState',
       'category',
-      'servicesOffered',
       'password'
     ];
 
@@ -93,6 +93,11 @@ function VendorRegistration() {
     const invalidCert = form.certificates.find((file) => !['application/pdf', 'image/png', 'image/jpeg'].includes(file.type));
     if (invalidCert) nextErrors.certificates = 'Certificates must be PDF, PNG, or JPEG';
 
+    const hasAtLeastOneService = serviceItems.some((item) => String(item.name || '').trim());
+    if (!hasAtLeastOneService) {
+      nextErrors.serviceItems = 'Add at least one service name';
+    }
+
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -113,7 +118,14 @@ function VendorRegistration() {
       formData.append('cityState', form.cityState);
       formData.append('city', form.city);
       formData.append('category', form.category);
-      formData.append('servicesOffered', form.servicesOffered);
+      const normalizedServiceItems = serviceItems
+        .map((item) => ({
+          name: String(item.name || '').trim(),
+          description: String(item.description || '').trim()
+        }))
+        .filter((item) => item.name);
+      formData.append('serviceItems', JSON.stringify(normalizedServiceItems));
+      formData.append('servicesOffered', normalizedServiceItems.map((item) => item.name).join(', '));
       formData.append('yearsExperience', String(Number(form.yearsExperience || 0)));
       formData.append('primaryServiceArea', form.primaryServiceArea);
       formData.append('serviceTypes', form.serviceTypes);
@@ -229,9 +241,52 @@ function VendorRegistration() {
               </div>
 
               <div className="auth-theme-input-group vendor-auth-full">
-                <label htmlFor="services-offered">Services Offered (comma separated)</label>
-                <input id="services-offered" value={form.servicesOffered} onChange={(event) => setForm((prev) => ({ ...prev, servicesOffered: event.target.value }))} />
-                {fieldError('servicesOffered')}
+                <label>Services</label>
+                <div className="service-items-stack">
+                  {serviceItems.map((item, index) => (
+                    <div className="service-item-card" key={`service-item-${index}`}>
+                      <div className="service-item-head">
+                        <strong>Service {index + 1}</strong>
+                        {serviceItems.length > 1 ? (
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={() => setServiceItems((prev) => prev.filter((_, i) => i !== index))}
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
+                      <input
+                        placeholder="Service name"
+                        value={item.name}
+                        onChange={(event) =>
+                          setServiceItems((prev) =>
+                            prev.map((row, i) => (i === index ? { ...row, name: event.target.value } : row))
+                          )
+                        }
+                      />
+                      <textarea
+                        rows={3}
+                        placeholder="Service description"
+                        value={item.description}
+                        onChange={(event) =>
+                          setServiceItems((prev) =>
+                            prev.map((row, i) => (i === index ? { ...row, description: event.target.value } : row))
+                          )
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setServiceItems((prev) => [...prev, { name: '', description: '' }])}
+                >
+                  <i className="fa fa-plus" /> Add Service
+                </button>
+                {fieldError('serviceItems')}
               </div>
 
               <div className="auth-theme-input-group vendor-auth-full">

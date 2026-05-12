@@ -29,9 +29,13 @@ function EditProfile() {
     industryType: '',
     servicesOffered: ''
   });
+  const [serviceItems, setServiceItems] = useState([{ name: '', description: '' }]);
+  const [serviceLimit, setServiceLimit] = useState(2);
+  const [paidServiceAccess, setPaidServiceAccess] = useState(false);
   const [status, setStatus] = useState('');
   const [planName, setPlanName] = useState('Free Vendor Listing');
   const [imageLimit, setImageLimit] = useState(2);
+  const [fileLimit, setFileLimit] = useState(2);
   const [existingImages, setExistingImages] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
   const [existingLogo, setExistingLogo] = useState('');
@@ -76,7 +80,10 @@ function EditProfile() {
         const data = response.data || {};
         const categories = Array.isArray(categoryResponse?.data) ? categoryResponse.data.map((item) => String(item || '').trim()).filter(Boolean) : [];
         const nextPlan = data.subscriptionPlan || 'Free Vendor Listing';
-        const nextLimit = ['Verified Vendor', 'Premium Vendor'].includes(nextPlan) ? 5 : 2;
+        const hasPaidAccess = data.paid === 'Silver' || data.paid === 'Gold' || ['Verified Vendor', 'Premium Vendor'].includes(nextPlan);
+        const nextLimit = hasPaidAccess ? 5 : 2;
+        setPaidServiceAccess(hasPaidAccess);
+        setServiceLimit(hasPaidAccess ? 20 : 2);
         setForm({
           companyName: data.companyName || '',
           contactPerson: data.contactPerson || '',
@@ -104,9 +111,34 @@ function EditProfile() {
           industryType: data.industryType || '',
           servicesOffered: Array.isArray(data.servicesOffered) ? data.servicesOffered.join(', ') : ''
         });
+        const normalizedServiceItems = Array.isArray(data.serviceItems)
+          ? data.serviceItems
+              .map((item) => ({
+                name: String(item?.name || '').trim(),
+                description: String(item?.description || '').trim()
+              }))
+              .filter((item) => item.name)
+          : [];
+        if (normalizedServiceItems.length) {
+          const normalized = hasPaidAccess ? normalizedServiceItems : normalizedServiceItems.slice(0, 2);
+          setServiceItems(normalized);
+          if (!hasPaidAccess && normalizedServiceItems.length > 2) {
+            setStatus('Free plan allows maximum 2 services. Extra services were hidden.');
+          }
+        } else if (Array.isArray(data.servicesOffered) && data.servicesOffered.length) {
+          const fallbackItems = data.servicesOffered.map((name) => ({ name: String(name || '').trim(), description: '' })).filter((item) => item.name);
+          const normalizedFallback = hasPaidAccess ? fallbackItems : fallbackItems.slice(0, 2);
+          setServiceItems(normalizedFallback);
+          if (!hasPaidAccess && fallbackItems.length > 2) {
+            setStatus('Free plan allows maximum 2 services. Extra services were hidden.');
+          }
+        } else {
+          setServiceItems([{ name: '', description: '' }]);
+        }
         setDbCategories(categories);
         setPlanName(nextPlan);
         setImageLimit(nextLimit);
+        setFileLimit(nextLimit);
         setExistingImages(Array.isArray(data.galleryImages) ? data.galleryImages : []);
         setExistingLogo(data.companyLogo || '');
         setExistingDocuments(Array.isArray(data.documents) ? data.documents : []);
@@ -114,6 +146,9 @@ function EditProfile() {
       } catch (error) {
         setPlanName('Free Vendor Listing');
         setImageLimit(2);
+        setFileLimit(2);
+        setServiceLimit(2);
+        setPaidServiceAccess(false);
         setExistingImages([]);
         setExistingLogo('');
         setExistingDocuments([]);
@@ -145,11 +180,65 @@ function EditProfile() {
     setSelectedImages(limited);
   };
 
+  const onDocumentsSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    const availableSlots = Math.max(0, fileLimit - existingDocuments.length);
+    if (!availableSlots) {
+      setStatus(`Documents limit reached. Maximum ${fileLimit} documents allowed on ${planName}.`);
+      setSelectedDocuments([]);
+      return;
+    }
+    const limited = files.slice(0, availableSlots);
+    if (files.length > availableSlots) {
+      setStatus(`Only ${availableSlots} more document(s) can be added on ${planName}.`);
+    }
+    setSelectedDocuments(limited);
+  };
+
+  const onCertificatesSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    const availableSlots = Math.max(0, fileLimit - existingCertificates.length);
+    if (!availableSlots) {
+      setStatus(`Certificates limit reached. Maximum ${fileLimit} certificates allowed on ${planName}.`);
+      setSelectedCertificates([]);
+      return;
+    }
+    const limited = files.slice(0, availableSlots);
+    if (files.length > availableSlots) {
+      setStatus(`Only ${availableSlots} more certificate(s) can be added on ${planName}.`);
+    }
+    setSelectedCertificates(limited);
+  };
+
+  const removeExisting = async (type, path) => {
+    try {
+      const payload = type === 'document'
+        ? { removeDocuments: [path] }
+        : { removeCertificates: [path] };
+      await api.put('/vendor/update-profile', payload, { headers: authHeader('vendor') });
+      setStatus(type === 'document' ? 'Document removed.' : 'Certificate removed.');
+      const response = await api.get('/vendor/me', { headers: authHeader('vendor') });
+      const data = response.data || {};
+      setExistingDocuments(Array.isArray(data.documents) ? data.documents : []);
+      setExistingCertificates(Array.isArray(data.certificates) ? data.certificates : []);
+    } catch (error) {
+      setStatus(error?.response?.data?.message || 'Unable to remove file.');
+    }
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     try {
       if (totalImagesCount > imageLimit) {
         setStatus(`Image limit exceeded. You can upload ${imageLimit} images on ${planName}.`);
+        return;
+      }
+      if (existingDocuments.length + selectedDocuments.length > fileLimit) {
+        setStatus(`Documents limit reached. Maximum ${fileLimit} documents allowed on ${planName}.`);
+        return;
+      }
+      if (existingCertificates.length + selectedCertificates.length > fileLimit) {
+        setStatus(`Certificates limit reached. Maximum ${fileLimit} certificates allowed on ${planName}.`);
         return;
       }
 
@@ -178,7 +267,18 @@ function EditProfile() {
       formData.append('declaration', form.declaration ? 'I agree and declare the information is accurate.' : '');
       formData.append('companyDescription', form.companyDescription);
       formData.append('industryType', form.industryType);
-      formData.append('servicesOffered', form.servicesOffered);
+      const normalizedServiceItems = serviceItems
+        .map((item) => ({
+          name: String(item.name || '').trim(),
+          description: String(item.description || '').trim()
+        }))
+        .filter((item) => item.name);
+      formData.append('serviceItems', JSON.stringify(normalizedServiceItems));
+      formData.append('servicesOffered', normalizedServiceItems.map((item) => item.name).join(', '));
+      if (!paidServiceAccess && normalizedServiceItems.length > 2) {
+        setStatus('Free plan allows maximum 2 services.');
+        return;
+      }
       if (selectedLogo) formData.append('companyLogo', selectedLogo);
       selectedImages.forEach((file) => formData.append('galleryImages', file));
       selectedDocuments.forEach((file) => formData.append('documents', file));
@@ -218,7 +318,55 @@ function EditProfile() {
           <option value="">Select Service Category</option>
           {dbCategories.map((item) => <option key={item} value={item}>{item}</option>)}
         </select></label>
-        <label>Services Offered (comma separated)<input placeholder="Services Offered (comma separated)" value={form.servicesOffered} onChange={(event) => setForm((prev) => ({ ...prev, servicesOffered: event.target.value }))} /></label>
+        <div className="vendor-auth-full service-items-block">
+          <label>Services</label>
+          <div className="service-items-stack">
+            {serviceItems.map((item, index) => (
+              <div className="service-item-card" key={`edit-service-item-${index}`}>
+                <div className="service-item-head">
+                  <strong>Service {index + 1}</strong>
+                  {serviceItems.length > 1 ? (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => setServiceItems((prev) => prev.filter((_, i) => i !== index))}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <input
+                  placeholder="Service name"
+                  value={item.name}
+                  onChange={(event) =>
+                    setServiceItems((prev) =>
+                      prev.map((row, i) => (i === index ? { ...row, name: event.target.value } : row))
+                    )
+                  }
+                />
+                <textarea
+                  rows={3}
+                  placeholder="Service description"
+                  value={item.description}
+                  onChange={(event) =>
+                    setServiceItems((prev) =>
+                      prev.map((row, i) => (i === index ? { ...row, description: event.target.value } : row))
+                    )
+                  }
+                />
+              </div>
+            ))}
+          </div>
+          {(paidServiceAccess || serviceItems.length < serviceLimit) ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setServiceItems((prev) => [...prev, { name: '', description: '' }])}
+            >
+              <i className="fa fa-plus" /> Add Service
+            </button>
+          ) : null}
+        </div>
         <label>Primary Service Area (comma separated)<input placeholder="Primary Service Area (comma separated)" value={form.primaryServiceArea} onChange={(event) => setForm((prev) => ({ ...prev, primaryServiceArea: event.target.value }))} /></label>
         <label>Type of Service Provided (comma separated)<input placeholder="Type of Service Provided (comma separated)" value={form.serviceTypes} onChange={(event) => setForm((prev) => ({ ...prev, serviceTypes: event.target.value }))} /></label>
         <label>Years of Experience<input type="number" placeholder="Years of Experience" value={form.yearsExperience} onChange={(event) => setForm((prev) => ({ ...prev, yearsExperience: event.target.value }))} /></label>
@@ -287,19 +435,27 @@ function EditProfile() {
         </div>
         <div className="vendor-gallery-uploader">
           <label htmlFor="vendor-documents-input">Upload Documents</label>
-          <input id="vendor-documents-input" type="file" multiple onChange={(event) => setSelectedDocuments(Array.from(event.target.files || []))} />
+          <small>{existingDocuments.length + selectedDocuments.length}/{fileLimit} documents ({planName})</small>
+          <input id="vendor-documents-input" type="file" multiple onChange={onDocumentsSelect} />
           <div className="vendor-existing-files">
             {existingDocuments.map((filePath, index) => (
-              <a key={`${filePath}-${index}`} href={toFileUrl(filePath)} target="_blank" rel="noreferrer">{`Document ${index + 1}`}</a>
+              <div key={`${filePath}-${index}`} className="button-row">
+                <a href={toFileUrl(filePath)} target="_blank" rel="noreferrer">{`Document ${index + 1}`}</a>
+                <button type="button" className="btn btn-danger" onClick={() => removeExisting('document', filePath)}>Remove</button>
+              </div>
             ))}
           </div>
         </div>
         <div className="vendor-gallery-uploader">
           <label htmlFor="vendor-certificates-input">Upload Certificates</label>
-          <input id="vendor-certificates-input" type="file" multiple onChange={(event) => setSelectedCertificates(Array.from(event.target.files || []))} />
+          <small>{existingCertificates.length + selectedCertificates.length}/{fileLimit} certificates ({planName})</small>
+          <input id="vendor-certificates-input" type="file" multiple onChange={onCertificatesSelect} />
           <div className="vendor-existing-files">
             {existingCertificates.map((filePath, index) => (
-              <a key={`${filePath}-${index}`} href={toFileUrl(filePath)} target="_blank" rel="noreferrer">{`Certificate ${index + 1}`}</a>
+              <div key={`${filePath}-${index}`} className="button-row">
+                <a href={toFileUrl(filePath)} target="_blank" rel="noreferrer">{`Certificate ${index + 1}`}</a>
+                <button type="button" className="btn btn-danger" onClick={() => removeExisting('certificate', filePath)}>Remove</button>
+              </div>
             ))}
           </div>
         </div>

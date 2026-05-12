@@ -24,7 +24,7 @@ function UploadAssets() {
         const name = String(file || '').split('/').pop();
         const lower = String(file || '').toLowerCase();
         const isImage = lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp');
-        return { name, url: toFileUrl(file), isImage };
+        return { name, path: String(file || '').trim(), url: toFileUrl(file), isImage };
       })
       .filter((item) => item.url);
 
@@ -63,6 +63,14 @@ function UploadAssets() {
 
   const save = async () => {
     try {
+      if (existingDocs.length + docs.length > 5) {
+        setStatus('Maximum 5 documents allowed.');
+        return;
+      }
+      if (existingCerts.length + certs.length > 5) {
+        setStatus('Maximum 5 certificates allowed.');
+        return;
+      }
       const formData = new FormData();
       docs.forEach((file) => formData.append('documents', file));
       certs.forEach((file) => formData.append('certificates', file));
@@ -80,18 +88,38 @@ function UploadAssets() {
     }
   };
 
+  const removeExisting = async (type, path) => {
+    try {
+      const payload = type === 'document'
+        ? { removeDocuments: [path] }
+        : { removeCertificates: [path] };
+      await api.put('/vendor/update-profile', payload, { headers: authHeader('vendor') });
+      setStatus(type === 'document' ? 'Document removed.' : 'Certificate removed.');
+      const response = await api.get('/vendor/me', { headers: authHeader('vendor') });
+      const data = response.data || {};
+      setExistingDocs(normalizeFiles(data.documents));
+      setExistingCerts(normalizeFiles(data.certificates));
+    } catch (error) {
+      setStatus(error?.response?.data?.message || 'Unable to remove file.');
+    }
+  };
+
   return (
     <div>
       <div className="section-head"><h1>Upload Images/Documents</h1></div>
       <div className="white-card form-grid">
         <label>Gallery / Documents</label>
+        <small>{existingDocs.length + docs.length}/5 documents</small>
         <input type="file" multiple onChange={(event) => setDocs(Array.from(event.target.files || []))} />
         <div className="upload-preview-grid">
           {existingDocs.map((item, index) => (
-            <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer" className="upload-preview-item">
-              {item.isImage ? <img src={item.url} alt={item.name} className="upload-preview-thumb" /> : <div className="upload-preview-file">PDF</div>}
+            <div key={`${item.url}-${index}`} className="upload-preview-item">
+              <a href={item.url} target="_blank" rel="noreferrer">
+                {item.isImage ? <img src={item.url} alt={item.name} className="upload-preview-thumb" /> : <div className="upload-preview-file">PDF</div>}
+              </a>
               <span>{item.name}</span>
-            </a>
+              <button type="button" className="btn btn-danger" onClick={() => removeExisting('document', item.path)}>Remove</button>
+            </div>
           ))}
           {selectedDocPreviews.map((item, index) => (
             <div key={`${item.name}-${index}`} className="upload-preview-item">
@@ -101,13 +129,17 @@ function UploadAssets() {
           ))}
         </div>
         <label>Certificates</label>
+        <small>{existingCerts.length + certs.length}/5 certificates</small>
         <input type="file" multiple onChange={(event) => setCerts(Array.from(event.target.files || []))} />
         <div className="upload-preview-grid">
           {existingCerts.map((item, index) => (
-            <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer" className="upload-preview-item">
-              {item.isImage ? <img src={item.url} alt={item.name} className="upload-preview-thumb" /> : <div className="upload-preview-file">PDF</div>}
+            <div key={`${item.url}-${index}`} className="upload-preview-item">
+              <a href={item.url} target="_blank" rel="noreferrer">
+                {item.isImage ? <img src={item.url} alt={item.name} className="upload-preview-thumb" /> : <div className="upload-preview-file">PDF</div>}
+              </a>
               <span>{item.name}</span>
-            </a>
+              <button type="button" className="btn btn-danger" onClick={() => removeExisting('certificate', item.path)}>Remove</button>
+            </div>
           ))}
           {selectedCertPreviews.map((item, index) => (
             <div key={`${item.name}-${index}`} className="upload-preview-item">
