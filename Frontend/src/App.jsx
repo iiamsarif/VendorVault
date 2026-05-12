@@ -24,6 +24,7 @@ import CategoryManagement from './Admin/CategoryManagement';
 import IndustryCategoryManagement from './Admin/IndustryCategoryManagement';
 import ListingModeration from './Admin/ListingModeration';
 import SubscriptionManagement from './Admin/SubscriptionManagement';
+import TransactionManagement from './Admin/TransactionManagement';
 import RequirementManagement from './Admin/RequirementManagement';
 import AnalyticsOverview from './Admin/AnalyticsOverview';
 import UserManagement from './Admin/UserManagement';
@@ -39,6 +40,7 @@ import TrackProfileViews from './Vendor/TrackProfileViews';
 import SubscriptionUpgrade from './Vendor/SubscriptionUpgrade';
 import RespondRequirements from './Vendor/RespondRequirements';
 import LeadTracking from './Vendor/LeadTracking';
+import Transactions from './Vendor/Transactions';
 
 import IndustryDashboard from './User/IndustryDashboard';
 import PostRequirement from './User/PostRequirement';
@@ -55,6 +57,7 @@ const adminLinks = [
   { to: '/admin/industry-categories', label: 'Industry Categories', icon: 'fa-solid fa-sitemap' },
   { to: '/admin/listings', label: 'Listing Moderation', icon: 'fa-solid fa-list' },
   { to: '/admin/subscriptions', label: 'Subscriptions', icon: 'fa-solid fa-credit-card' },
+  { to: '/admin/transactions', label: 'Transactions', icon: 'fa-solid fa-money-check-dollar' },
   { to: '/admin/requirements', label: 'Requirements', icon: 'fa-solid fa-file-circle-plus' },
   { to: '/admin/analytics', label: 'Analytics', icon: 'fa-solid fa-chart-line' },
   { to: '/admin/users', label: 'Users', icon: 'fa-solid fa-users' }
@@ -69,6 +72,7 @@ const vendorLinks = [
   { to: '/vendor/dashboard/inquiries', label: 'View Inquiries', icon: 'fa fa-envelope' },
   { to: '/vendor/dashboard/profile-views', label: 'Profile Views', icon: 'fa fa-eye' },
   { to: '/vendor/dashboard/subscription', label: 'Subscription', icon: 'fa fa-crown', badge: '02', badgeClass: 'orange' },
+  { to: '/vendor/dashboard/transactions', label: 'Transaction', icon: 'fa fa-receipt' },
   { to: '/vendor/dashboard/respond-requirements', label: 'Respond Requirements', icon: 'fa fa-reply' },
   { to: '/vendor/dashboard/leads', label: 'Lead Tracking', icon: 'fa fa-chart-bar' }
 ];
@@ -169,6 +173,7 @@ function App() {
             <Route path="industry-categories" element={<IndustryCategoryManagement />} />
             <Route path="listings" element={<ListingModeration />} />
             <Route path="subscriptions" element={<SubscriptionManagement />} />
+            <Route path="transactions" element={<TransactionManagement />} />
             <Route path="requirements" element={<RequirementManagement />} />
             <Route path="analytics" element={<AnalyticsOverview />} />
             <Route path="users" element={<UserManagement />} />
@@ -186,6 +191,7 @@ function App() {
             <Route path="inquiries" element={<ViewInquiries />} />
             <Route path="profile-views" element={<TrackProfileViews />} />
             <Route path="subscription" element={<SubscriptionUpgrade />} />
+            <Route path="transactions" element={<Transactions />} />
             <Route path="respond-requirements" element={<RespondRequirements />} />
             <Route path="leads" element={<LeadTracking />} />
           </Route>
