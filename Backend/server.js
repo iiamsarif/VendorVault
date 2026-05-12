@@ -69,8 +69,8 @@ const upload = multer({
 const vendorUploadFields = upload.fields([
   { name: 'companyLogo', maxCount: 1 },
   { name: 'galleryImages', maxCount: 5 },
-  { name: 'documents', maxCount: 10 },
-  { name: 'certificates', maxCount: 10 }
+  { name: 'documents', maxCount: 5 },
+  { name: 'certificates', maxCount: 5 }
 ]);
 
 function maybeHandleVendorUploads(req, res, next) {
@@ -235,10 +235,63 @@ function sanitizeString(value) {
   return String(value || '').trim();
 }
 
+function toStringArray(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeString(item)).filter(Boolean);
+  }
+  const raw = sanitizeString(value);
+  if (!raw) return [];
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => sanitizeString(item)).filter(Boolean);
+      }
+    } catch (error) {
+      // fall through to comma split
+    }
+  }
+  return raw
+    .split(',')
+    .map((item) => sanitizeString(item))
+    .filter(Boolean);
+}
+
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeServiceItems(value) {
+  if (!value) return [];
+  let raw = value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      raw = JSON.parse(trimmed);
+    } catch (error) {
+      raw = [];
+    }
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (typeof item === 'string') {
+        const name = sanitizeString(item);
+        return name ? { name, description: '' } : null;
+      }
+      const name = sanitizeString(item?.name);
+      const description = sanitizeString(item?.description);
+      if (!name) return null;
+      return { name, description };
+    })
+    .filter(Boolean);
+}
+
 function hasSilverAccess(vendor = {}) {
   const paid = sanitizeString(vendor.paid || '');
   const plan = sanitizeString(vendor.subscriptionPlan || '');
-  return paid === 'Silver' || plan === 'Verified Vendor' || plan === 'Premium Vendor';
+  return paid === 'Silver' || paid === 'Gold' || plan === 'Verified Vendor' || plan === 'Premium Vendor';
 }
 
 async function enforceVendorSubscriptionExpiry(database, vendorId) {
@@ -483,6 +536,15 @@ function normalizeVendorPayload(body = {}) {
   const primaryCategory = sanitizeString(body.category);
   const normalizedCategories = Array.from(new Set([...(categoriesFromBody || []), ...(primaryCategory ? [primaryCategory] : [])]));
 
+  const serviceItems = normalizeServiceItems(body.serviceItems);
+  const legacyServices = Array.isArray(body.servicesOffered)
+    ? body.servicesOffered.map((s) => sanitizeString(s)).filter(Boolean)
+    : String(body.servicesOffered || '')
+        .split(',')
+        .map((s) => sanitizeString(s))
+        .filter(Boolean);
+  const servicesOffered = Array.from(new Set([...(legacyServices || []), ...serviceItems.map((item) => item.name)]));
+
   return {
     companyName: sanitizeString(body.companyName),
     contactPerson: sanitizeString(body.contactPerson),
@@ -493,12 +555,8 @@ function normalizeVendorPayload(body = {}) {
     cityState: sanitizeString(body.cityState),
     category: primaryCategory,
     categories: normalizedCategories,
-    servicesOffered: Array.isArray(body.servicesOffered)
-      ? body.servicesOffered.map((s) => sanitizeString(s)).filter(Boolean)
-      : String(body.servicesOffered || '')
-          .split(',')
-          .map((s) => sanitizeString(s))
-          .filter(Boolean),
+    servicesOffered,
+    serviceItems,
     yearsExperience: Number(body.yearsExperience) || 0,
     companyLogo: sanitizeString(body.companyLogo),
     galleryImages: Array.isArray(body.galleryImages) ? body.galleryImages : [],
@@ -574,6 +632,20 @@ async function registerVendor(req, res, next) {
     }
     if (!isValidPhone(payload.mobileNumber)) {
       return res.status(400).json({ message: 'Invalid mobile number.' });
+    }
+
+    const registerFileLimit = 2;
+    if ((payload.documents || []).length > registerFileLimit) {
+      (payload.documents || []).forEach(removeUploadFileByPath);
+      (payload.certificates || []).forEach(removeUploadFileByPath);
+      if (payload.companyLogo) removeUploadFileByPath(payload.companyLogo);
+      return res.status(400).json({ message: `Documents limit reached. Maximum ${registerFileLimit} documents allowed for free vendors.` });
+    }
+    if ((payload.certificates || []).length > registerFileLimit) {
+      (payload.documents || []).forEach(removeUploadFileByPath);
+      (payload.certificates || []).forEach(removeUploadFileByPath);
+      if (payload.companyLogo) removeUploadFileByPath(payload.companyLogo);
+      return res.status(400).json({ message: `Certificates limit reached. Maximum ${registerFileLimit} certificates allowed for free vendors.` });
     }
 
     const exists = await database.collection(COLLECTIONS.VENDORS).findOne({ email: payload.email });
@@ -665,11 +737,26 @@ async function updateVendorProfile(req, res, next) {
     if (hasField('declaration')) updateSet.declaration = payload.declaration;
     if (hasField('yearsExperience')) updateSet.yearsExperience = payload.yearsExperience;
     if (hasField('servicesOffered')) updateSet.servicesOffered = payload.servicesOffered;
+    if (hasField('serviceItems')) updateSet.serviceItems = payload.serviceItems;
+
+    if (hasField('serviceItems') || hasField('servicesOffered')) {
+      const serviceLimit = hasSilverAccess(existingVendor) ? 20 : 2;
+      const requestedServiceItems = hasField('serviceItems')
+        ? payload.serviceItems
+        : (payload.servicesOffered || []).map((name) => ({ name: sanitizeString(name), description: '' })).filter((item) => item.name);
+      if (requestedServiceItems.length > serviceLimit) {
+        return res.status(400).json({ message: `Service limit reached. Maximum ${serviceLimit} services allowed on your current plan.` });
+      }
+      updateSet.serviceItems = requestedServiceItems;
+      updateSet.servicesOffered = requestedServiceItems.map((item) => item.name);
+    }
 
     const uploadedLogo = req.files?.companyLogo?.[0];
     const uploadedGalleryImages = req.files?.galleryImages || [];
     const uploadedDocuments = req.files?.documents || [];
     const uploadedCertificates = req.files?.certificates || [];
+    const removeDocuments = toStringArray(req.body.removeDocuments);
+    const removeCertificates = toStringArray(req.body.removeCertificates);
     if (uploadedLogo) updateSet.companyLogo = toUploadPath(uploadedLogo);
     if (uploadedGalleryImages.length) {
       const invalidGalleryType = uploadedGalleryImages.find((file) => !String(file.mimetype || '').startsWith('image/'));
@@ -688,8 +775,46 @@ async function updateVendorProfile(req, res, next) {
 
       updateSet.galleryImages = mergedGallery;
     }
-    if (uploadedDocuments.length) updateSet.documents = uploadedDocuments.map(toUploadPath);
-    if (uploadedCertificates.length) updateSet.certificates = uploadedCertificates.map(toUploadPath);
+    if (removeDocuments.length) {
+      const existingDocuments = Array.isArray(existingVendor?.documents) ? existingVendor.documents : [];
+      const removeSet = new Set(removeDocuments);
+      const kept = existingDocuments.filter((item) => !removeSet.has(item));
+      const removed = existingDocuments.filter((item) => removeSet.has(item));
+      removed.forEach(removeUploadFileByPath);
+      updateSet.documents = kept;
+    }
+    if (removeCertificates.length) {
+      const existingCertificates = Array.isArray(existingVendor?.certificates) ? existingVendor.certificates : [];
+      const removeSet = new Set(removeCertificates);
+      const kept = existingCertificates.filter((item) => !removeSet.has(item));
+      const removed = existingCertificates.filter((item) => removeSet.has(item));
+      removed.forEach(removeUploadFileByPath);
+      updateSet.certificates = kept;
+    }
+    if (uploadedDocuments.length) {
+      const documentsLimit = hasSilverAccess(existingVendor) ? 5 : 2;
+      const currentDocuments = Array.isArray(updateSet.documents)
+        ? updateSet.documents
+        : (Array.isArray(existingVendor?.documents) ? existingVendor.documents : []);
+      const mergedDocuments = [...currentDocuments, ...uploadedDocuments.map(toUploadPath)];
+      if (mergedDocuments.length > documentsLimit) {
+        uploadedDocuments.map(toUploadPath).forEach(removeUploadFileByPath);
+        return res.status(400).json({ message: `Documents limit reached. Maximum ${documentsLimit} documents allowed on your current plan.` });
+      }
+      updateSet.documents = mergedDocuments;
+    }
+    if (uploadedCertificates.length) {
+      const certificatesLimit = hasSilverAccess(existingVendor) ? 5 : 2;
+      const currentCertificates = Array.isArray(updateSet.certificates)
+        ? updateSet.certificates
+        : (Array.isArray(existingVendor?.certificates) ? existingVendor.certificates : []);
+      const mergedCertificates = [...currentCertificates, ...uploadedCertificates.map(toUploadPath)];
+      if (mergedCertificates.length > certificatesLimit) {
+        uploadedCertificates.map(toUploadPath).forEach(removeUploadFileByPath);
+        return res.status(400).json({ message: `Certificates limit reached. Maximum ${certificatesLimit} certificates allowed on your current plan.` });
+      }
+      updateSet.certificates = mergedCertificates;
+    }
 
     const mergedDescription = Object.prototype.hasOwnProperty.call(updateSet, 'companyDescription')
       ? updateSet.companyDescription
@@ -701,7 +826,7 @@ async function updateVendorProfile(req, res, next) {
 
     await database.collection(COLLECTIONS.VENDORS).updateOne({ _id: new ObjectId(vendorId) }, { $set: updateSet });
 
-    const shouldUpdateVendorServices = hasField('servicesOffered') || hasField('category');
+    const shouldUpdateVendorServices = hasField('servicesOffered') || hasField('serviceItems') || hasField('category');
     if (shouldUpdateVendorServices) {
       await database.collection(COLLECTIONS.VENDOR_SERVICES).updateOne(
         { vendorId },
@@ -729,28 +854,39 @@ async function updateVendorProfile(req, res, next) {
 async function getVendorListings(req, res, next) {
   try {
     const database = getDB();
-    const {
-      category,
-      industryType,
-      verified,
-      topRated,
-      newVendors,
-      premium,
-      featured,
-      search,
-      minRating,
-      reviewMin
-    } = req.query;
+    const category = sanitizeString(req.query.category);
+    const location = sanitizeString(req.query.location);
+    const industryType = sanitizeString(req.query.industryType);
+    const verified = sanitizeString(req.query.verified);
+    const unverified = sanitizeString(req.query.unverified);
+    const topRated = sanitizeString(req.query.topRated);
+    const newVendors = sanitizeString(req.query.newVendors);
+    const premium = sanitizeString(req.query.premium);
+    const featured = sanitizeString(req.query.featured);
+    const search = sanitizeString(req.query.search);
+    const minRating = sanitizeString(req.query.minRating);
+    const reviewMin = sanitizeString(req.query.reviewMin);
 
     const match = { suspended: { $ne: true } };
+    const andConditions = [];
+
     if (category) {
-      match.$or = [
-        { category },
-        { categories: category }
-      ];
+      andConditions.push({
+        $or: [
+          { category },
+          { categories: category }
+        ]
+      });
+    }
+    if (location) {
+      const locationRegex = new RegExp(`\\b${escapeRegex(location)}\\b`, 'i');
+      andConditions.push({
+        primaryServiceArea: { $elemMatch: { $regex: locationRegex } }
+      });
     }
     if (industryType) match.industryType = { $regex: industryType, $options: 'i' };
     if (verified === 'true') match.verified = true;
+    if (unverified === 'true') match.verified = false;
     if (premium === 'true') match.subscriptionPlan = 'Premium Vendor';
     if (featured === 'true') match.featured = true;
     if (search) {
@@ -759,15 +895,18 @@ async function getVendorListings(req, res, next) {
         { category: { $regex: search, $options: 'i' } },
         { categories: { $elemMatch: { $regex: search, $options: 'i' } } },
         { servicesOffered: { $elemMatch: { $regex: search, $options: 'i' } } },
+        { serviceTypes: { $elemMatch: { $regex: search, $options: 'i' } } },
+        { primaryServiceArea: { $elemMatch: { $regex: search, $options: 'i' } } },
         { industryType: { $regex: search, $options: 'i' } },
-        { cityState: { $regex: search, $options: 'i' } }
+        { cityState: { $regex: search, $options: 'i' } },
+        { officeAddress: { $regex: search, $options: 'i' } },
+        { businessType: { $regex: search, $options: 'i' } }
       ];
-      if (match.$or) {
-        match.$and = [{ $or: match.$or }, { $or: searchConditions }];
-        delete match.$or;
-      } else {
-        match.$or = searchConditions;
-      }
+      andConditions.push({ $or: searchConditions });
+    }
+
+    if (andConditions.length) {
+      match.$and = andConditions;
     }
 
     if (newVendors === 'true') {
@@ -861,7 +1000,7 @@ async function updateVendorByAdmin(req, res, next) {
       { $set: updateSet }
     );
 
-    if (hasField('servicesOffered') || hasField('category')) {
+    if (hasField('servicesOffered') || hasField('serviceItems') || hasField('category')) {
       await database.collection(COLLECTIONS.VENDOR_SERVICES).updateOne(
         { vendorId },
         {
@@ -1058,16 +1197,31 @@ async function getVendors(req, res, next) {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+    const search = sanitizeString(req.query.search);
+
+    const filter = {};
+    if (search) {
+      const searchRegex = { $regex: search, $options: 'i' };
+      filter.$or = [
+        { companyName: searchRegex },
+        { contactPerson: searchRegex },
+        { email: searchRegex },
+        { mobileNumber: searchRegex },
+        { category: searchRegex },
+        { cityState: searchRegex },
+        { location: searchRegex }
+      ];
+    }
 
     const vendors = await database
       .collection(COLLECTIONS.VENDORS)
-      .find({})
+      .find(filter)
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
       .toArray();
 
-    const totalVendors = await database.collection(COLLECTIONS.VENDORS).countDocuments();
+    const totalVendors = await database.collection(COLLECTIONS.VENDORS).countDocuments(filter);
     const totalPages = Math.ceil(totalVendors / limit);
 
     return res.status(200).json({
@@ -1113,20 +1267,64 @@ async function getUsers(req, res, next) {
 async function updateUser(req, res, next) {
   try {
     const database = getDB();
-    const { userId, ...updateData } = req.body;
+    const { userId } = req.body;
 
     if (!ObjectId.isValid(userId)) {
       return res.status(400).json({ message: 'Invalid user id.' });
     }
 
-    const result = await database.collection(COLLECTIONS.USERS).updateOne(
+    const name = sanitizeString(req.body.name);
+    const email = sanitizeString(req.body.email).toLowerCase();
+
+    const existingUser = await database.collection(COLLECTIONS.USERS).findOne({
+      _id: new ObjectId(userId)
+    });
+    if (!existingUser) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const role = sanitizeString(req.body.role) || sanitizeString(existingUser.role) || 'user';
+    const accountType = sanitizeString(req.body.accountType) || sanitizeString(existingUser.accountType) || 'user';
+
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Name and email are required.' });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: 'Invalid email format.' });
+    }
+
+    const allowedRoles = new Set(['user', 'vendor', 'admin']);
+    const allowedAccountTypes = new Set(['user', 'industry']);
+    if (!allowedRoles.has(role)) {
+      return res.status(400).json({ message: 'Invalid role.' });
+    }
+
+    if (!allowedAccountTypes.has(accountType)) {
+      return res.status(400).json({ message: 'Invalid account type.' });
+    }
+
+    const existingWithEmail = await database.collection(COLLECTIONS.USERS).findOne({
+      email,
+      _id: { $ne: new ObjectId(userId) }
+    });
+
+    if (existingWithEmail) {
+      return res.status(409).json({ message: 'Email is already in use by another user.' });
+    }
+
+    const updateData = {
+      name,
+      email,
+      role,
+      accountType,
+      updatedAt: new Date()
+    };
+
+    await database.collection(COLLECTIONS.USERS).updateOne(
       { _id: new ObjectId(userId) },
       { $set: updateData }
     );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ message: 'User not found.' });
-    }
 
     return res.status(200).json({ message: 'User updated successfully.' });
   } catch (error) {
@@ -2702,6 +2900,117 @@ async function setVendorSubscriptionTierByAdmin(req, res, next) {
   }
 }
 
+function toTransactionViewItem(item = {}, vendorMeta = null) {
+  const now = new Date();
+  const startDate = item.startDate ? new Date(item.startDate) : null;
+  const endDate = item.endDate ? new Date(item.endDate) : null;
+  const rawStatus = sanitizeString(item.status || 'unknown').toLowerCase();
+  const isOverride = !item.paymentId && !item.orderId;
+
+  let computedStatus = 'Inactive';
+  if (rawStatus === 'active' && endDate && endDate >= now) {
+    computedStatus = isOverride ? 'Override' : 'Active';
+  } else if ((rawStatus === 'active' && endDate && endDate < now) || rawStatus === 'expired') {
+    computedStatus = 'Expired';
+  } else if (rawStatus === 'cancelled') {
+    computedStatus = 'Cancelled';
+  } else if (rawStatus === 'paid') {
+    computedStatus = 'Paid';
+  } else if (rawStatus) {
+    computedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
+  }
+
+  return {
+    _id: String(item._id || ''),
+    vendorId: sanitizeString(item.vendorId),
+    vendorName: vendorMeta?.companyName || '',
+    vendorEmail: vendorMeta?.email || '',
+    plan: sanitizeString(item.plan || ''),
+    label: sanitizeString(item.label || ''),
+    amount: Number(item.amount || 0),
+    status: computedStatus,
+    rawStatus: rawStatus || 'unknown',
+    paymentId: item.paymentId || null,
+    orderId: item.orderId || null,
+    startDate: startDate || null,
+    endDate: endDate || null,
+    createdAt: item.createdAt || null,
+    updatedAt: item.updatedAt || null,
+    cancelledBy: sanitizeString(item.cancelledBy),
+    cancelledAt: item.cancelledAt || null,
+    source: isOverride ? 'Admin Override' : 'Payment'
+  };
+}
+
+async function getVendorTransactions(req, res, next) {
+  try {
+    const database = getDB();
+    const vendorId = req.auth.id;
+    const rows = await database
+      .collection(COLLECTIONS.SUBSCRIPTIONS)
+      .find({ vendorId })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const transactions = rows.map((item) => toTransactionViewItem(item));
+    return res.status(200).json(transactions);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getAdminTransactions(req, res, next) {
+  try {
+    const database = getDB();
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+    const paidPlans = ['Verified Vendor', 'Premium Vendor'];
+    const filter = { plan: { $in: paidPlans } };
+
+    const [rows, total] = await Promise.all([
+      database
+        .collection(COLLECTIONS.SUBSCRIPTIONS)
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+      database.collection(COLLECTIONS.SUBSCRIPTIONS).countDocuments(filter)
+    ]);
+
+    const vendorIds = Array.from(
+      new Set(
+        rows
+          .map((item) => sanitizeString(item.vendorId))
+          .filter((id) => ObjectId.isValid(id))
+      )
+    ).map((id) => new ObjectId(id));
+
+    const vendors = vendorIds.length
+      ? await database
+          .collection(COLLECTIONS.VENDORS)
+          .find({ _id: { $in: vendorIds } }, { projection: { companyName: 1, email: 1 } })
+          .toArray()
+      : [];
+
+    const vendorById = new Map(vendors.map((vendor) => [String(vendor._id), vendor]));
+    const transactions = rows.map((item) => {
+      const vendorMeta = vendorById.get(sanitizeString(item.vendorId)) || null;
+      return toTransactionViewItem(item, vendorMeta);
+    });
+
+    return res.status(200).json({
+      transactions,
+      currentPage: page,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      total
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function toggleFeaturedVendor(req, res, next) {
   try {
     const database = getDB();
@@ -2794,6 +3103,7 @@ adminRoutes.get('/stats', requireAuth(['admin']), getAdminStats);
 adminRoutes.get('/vendors', requireAuth(['admin']), getVendors);
 adminRoutes.get('/subscriptions/paid-vendors', requireAuth(['admin']), getAdminPaidVendors);
 adminRoutes.post('/subscriptions/set-tier', requireAuth(['admin']), setVendorSubscriptionTierByAdmin);
+adminRoutes.get('/transactions', requireAuth(['admin']), getAdminTransactions);
 adminRoutes.get('/users', requireAuth(['admin']), getUsers);
 adminRoutes.put('/users/update', requireAuth(['admin']), updateUser);
 adminRoutes.delete('/users/:userId', requireAuth(['admin']), deleteUser);
@@ -2810,6 +3120,7 @@ vendorRoutes.get('/listings', getVendorListings);
 vendorRoutes.get('/profile', getVendorProfile);
 vendorRoutes.get('/me', requireAuth(['vendor']), getVendorSelfProfile);
 vendorRoutes.get('/analytics', requireAuth(['vendor']), getVendorAnalytics);
+vendorRoutes.get('/transactions', requireAuth(['vendor']), getVendorTransactions);
 vendorRoutes.get('/listing-categories', requireAuth(['vendor']), getVendorListingSettings);
 vendorRoutes.put('/listing-categories', requireAuth(['vendor']), updateVendorListingSettings);
 vendorRoutes.get('/profile-views', requireAuth(['vendor']), getVendorProfileViews);
