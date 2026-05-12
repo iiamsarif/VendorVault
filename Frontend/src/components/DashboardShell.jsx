@@ -110,10 +110,6 @@ function DashboardShell({ role, title, links, children }) {
               <button type="button" className="admin-menu-toggle" onClick={toggleSidebar}>
                 <i className="fa-solid fa-bars" />
               </button>
-              <div className="admin-search-bar">
-                <i className="fa fa-search" />
-                <input type="text" placeholder="Search..." />
-              </div>
             </div>
 
             <div className="admin-top-right">
@@ -190,9 +186,6 @@ function DashboardShell({ role, title, links, children }) {
               <button type="button" className="vendor-toggle-btn" onClick={toggleSidebar}>
                 <i className="fa fa-bars" />
               </button>
-              <div className="vendor-search-box">
-                <input type="text" placeholder="Search..." />
-              </div>
             </div>
             <div className="vendor-top-right">
               {vendorMeta.silverAccess ? (
