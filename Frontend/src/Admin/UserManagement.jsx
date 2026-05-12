@@ -11,9 +11,7 @@ function UserManagement() {
 
   const [form, setForm] = useState({
     email: '',
-    name: '',
-    role: 'user',
-    accountType: 'user'
+    name: ''
   });
 
   const load = async (page = 1) => {
@@ -34,9 +32,7 @@ function UserManagement() {
     setEditingUser(user);
     setForm({
       email: user.email || '',
-      name: user.name || '',
-      role: user.role || 'user',
-      accountType: user.accountType || 'user'
+      name: user.name || ''
     });
   };
 
@@ -44,20 +40,25 @@ function UserManagement() {
     setEditingUser(null);
     setForm({
       email: '',
-      name: '',
-      role: 'user',
-      accountType: 'user'
+      name: ''
     });
   };
 
   const saveUser = async () => {
     if (!editingUser?._id) return;
+    const payload = {
+      userId: editingUser._id,
+      name: String(form.name || '').trim(),
+      email: String(form.email || '').trim().toLowerCase()
+    };
+
+    if (!payload.name || !payload.email) {
+      setStatus('Name and email are required.');
+      return;
+    }
     
     try {
-      await api.put('/admin/users/update', {
-        userId: editingUser._id,
-        ...form
-      }, { headers: authHeader('admin') });
+      await api.put('/admin/users/update', payload, { headers: authHeader('admin') });
       setStatus('User updated successfully.');
       closeEdit();
       load(currentPage);
@@ -120,8 +121,6 @@ function UserManagement() {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
-                <th>Role</th>
-                <th>Account Type</th>
                 <th>Created At</th>
                 <th>Actions</th>
               </tr>
@@ -129,19 +128,13 @@ function UserManagement() {
             <tbody>
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="empty-text">No users found.</td>
+                  <td colSpan="4" className="empty-text">No users found.</td>
                 </tr>
               ) : (
                 users.map((user) => (
                   <tr key={user._id}>
                     <td data-label="Name">{user.name || '-'}</td>
                     <td data-label="Email">{user.email || '-'}</td>
-                    <td data-label="Role">
-                      <span className={`badge ${user.role === 'admin' ? 'badge-primary' : 'badge-secondary'}`}>
-                        {user.role || 'user'}
-                      </span>
-                    </td>
-                    <td data-label="Account Type">{user.accountType || '-'}</td>
                     <td data-label="Created At">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}</td>
                     <td data-label="Actions">
                       <div className="button-row">
@@ -182,28 +175,6 @@ function UserManagement() {
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
-              </div>
-              <div className="form-group">
-                <label>Role</label>
-                <select
-                  value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value })}
-                >
-                  <option value="user">User</option>
-                  <option value="vendor">Vendor</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Account Type</label>
-                <select
-                  value={form.accountType}
-                  onChange={(e) => setForm({ ...form, accountType: e.target.value })}
-                >
-                  <option value="user">User</option>
-                  <option value="vendor">Vendor</option>
-                  <option value="admin">Admin</option>
-                </select>
               </div>
             </div>
             <div className="modal-footer">

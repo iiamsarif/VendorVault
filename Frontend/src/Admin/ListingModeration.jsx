@@ -4,6 +4,7 @@ import { api, authHeader } from '../components/api';
 function ListingModeration() {
   const [vendors, setVendors] = useState([]);
   const [status, setStatus] = useState('');
+  const [search, setSearch] = useState('');
   const [editingVendor, setEditingVendor] = useState(null);
   const [verifyingVendor, setVerifyingVendor] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,10 +53,17 @@ function ListingModeration() {
     suspended: false
   });
 
-  const load = async (page = 1) => {
+  const load = async (page = 1, searchTerm = search) => {
     setLoading(true);
     try {
-      const response = await api.get(`/admin/vendors?page=${page}&limit=10`, { headers: authHeader('admin') });
+      const query = new URLSearchParams();
+      query.set('page', String(page));
+      query.set('limit', '10');
+      const cleanSearch = String(searchTerm || '').trim();
+      if (cleanSearch) {
+        query.set('search', cleanSearch);
+      }
+      const response = await api.get(`/admin/vendors?${query.toString()}`, { headers: authHeader('admin') });
       setVendors(response.data?.vendors || []);
       setTotalPages(response.data?.totalPages || 1);
       setCurrentPage(response.data?.currentPage || 1);
@@ -67,8 +75,8 @@ function ListingModeration() {
   };
 
   useEffect(() => {
-    load(currentPage);
-  }, [currentPage]);
+    load(currentPage, search);
+  }, [currentPage, search]);
 
   const openVerificationModal = (vendor) => {
     setVerifyingVendor(vendor);
@@ -119,7 +127,7 @@ function ListingModeration() {
       }, { headers: authHeader('admin') });
       setStatus('Vendor verified successfully.');
       closeVerificationModal();
-      loadVendors();
+      load(currentPage, search);
     } catch (error) {
       setStatus('Unable to verify vendor.');
     }
@@ -189,7 +197,7 @@ function ListingModeration() {
       await api.post('/admin/vendors/reject', { vendorId: editingVendor._id }, { headers: authHeader('admin') });
       setStatus('Vendor deleted successfully.');
       setEditingVendor(null);
-      loadVendors();
+      load(currentPage, search);
     } catch (error) {
       setStatus(error?.response?.data?.message || 'Unable to delete vendor.');
     }
@@ -213,7 +221,7 @@ function ListingModeration() {
       );
       setStatus('Vendor updated successfully.');
       setEditingVendor(null);
-      loadVendors();
+      load(currentPage, search);
     } catch (error) {
       setStatus(error?.response?.data?.message || 'Unable to update vendor.');
     }
@@ -223,6 +231,17 @@ function ListingModeration() {
     <div>
       <div className="section-head"><h1>Listing Moderation</h1></div>
       {status && <p className="status-text">{status}</p>}
+
+      <div className="white-card form-grid" style={{ marginBottom: '12px' }}>
+        <input
+          placeholder="Search vendor by company, contact, email, phone, category, location"
+          value={search}
+          onChange={(event) => {
+            setCurrentPage(1);
+            setSearch(event.target.value);
+          }}
+        />
+      </div>
       
       <div className="pagination-controls">
         <button 
